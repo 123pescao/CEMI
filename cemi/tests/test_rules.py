@@ -703,3 +703,590 @@ class TestScanEngineNMHFindings:
         result = ScanEngine([nmh_col]).run_scan()
         for f in result.findings:
             assert f.scan_id == result.scan_id
+
+
+# ===========================================================================
+# Browser extension rules (EXT-001 … EXT-004)
+# ===========================================================================
+
+from cemi.rules.browser_extension_rules import (  # noqa: E402
+    _EXT001_ID,
+    _EXT001_VERSION,
+    _EXT002_ID,
+    _EXT002_VERSION,
+    _EXT003_ID,
+    _EXT003_VERSION,
+    _EXT004_ID,
+    _EXT004_VERSION,
+    ExtAllUrlsRule,
+    ExtBridgeCapabilityRule,
+    ExtCookiesRule,
+    ExtScriptingWebRequestRule,
+)
+
+# ---------------------------------------------------------------------------
+# Shared extension fixtures
+# ---------------------------------------------------------------------------
+
+_EXT_BASE: dict[str, Any] = {
+    "browser": "Chrome",
+    "extension_id": "aabbccddeeffgghhiijjkkllmmnnoopp",
+    "name": "TestExtension",
+    "version": "1.2.3",
+    "manifest_path": r"C:\Users\[REDACTED]\AppData\Local\Google\Chrome\User Data\Default\Extensions\aabbcc\1.2.3\manifest.json",
+    "permissions": [],
+    "host_permissions": [],
+}
+
+
+def _ext(**kwargs: Any) -> dict[str, Any]:
+    return {**_EXT_BASE, **kwargs}
+
+
+def _bext_col(extensions: list[dict[str, Any]]) -> MagicMock:
+    return _mock_collector("browser_extensions", extensions)
+
+
+def _nmh_and_bext_col(
+    hosts: list[dict[str, Any]],
+    extensions: list[dict[str, Any]],
+) -> tuple[MagicMock, MagicMock]:
+    return _nmh_col(hosts), _bext_col(extensions)
+
+
+# ---------------------------------------------------------------------------
+# EXT-001 — ExtAllUrlsRule
+# ---------------------------------------------------------------------------
+
+
+class TestExtAllUrlsRule:
+    def _rule(self) -> ExtAllUrlsRule:
+        return ExtAllUrlsRule()
+
+    # --- fires ---
+
+    def test_fires_on_all_urls_host_permission(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert len(findings) == 1
+
+    def test_fires_alongside_other_host_permissions(self) -> None:
+        ext = _ext(host_permissions=["https://*.example.com/*", "<all_urls>"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert len(findings) == 1
+
+    def test_fires_for_each_matching_extension(self) -> None:
+        ext1 = _ext(name="Ext1", host_permissions=["<all_urls>"])
+        ext2 = _ext(name="Ext2", host_permissions=["<all_urls>"])
+        findings = self._rule().evaluate({"browser_extensions": [ext1, ext2]}, _SCAN_ID)
+        assert len(findings) == 2
+
+    # --- does not fire ---
+
+    def test_no_fire_when_no_host_permissions(self) -> None:
+        ext = _ext(host_permissions=[])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_for_specific_domain_only(self) -> None:
+        ext = _ext(host_permissions=["https://*.example.com/*"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_no_extensions(self) -> None:
+        findings = self._rule().evaluate({"browser_extensions": []}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_key_absent(self) -> None:
+        findings = self._rule().evaluate({}, _SCAN_ID)
+        assert findings == []
+
+    # --- finding shape ---
+
+    def test_rule_id(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.id == _EXT001_ID
+
+    def test_rule_version(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.rule_version == _EXT001_VERSION
+
+    def test_severity_medium(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.severity == Severity.MEDIUM
+
+    def test_category_browser_extension(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.category == "Browser Extension"
+
+    def test_explanation_fields_non_empty(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert len(f.official_explanation) > 10
+        assert len(f.in_other_words) > 10
+        assert f.why_this_matters
+        assert f.recommended_action
+        assert f.safe_to_ignore_when
+
+    def test_app_field_is_extension_name(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.app == "TestExtension"
+
+    def test_scan_id_matches(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.scan_id == _SCAN_ID
+
+    def test_instance_ids_unique(self) -> None:
+        from uuid import UUID
+        ext = _ext(host_permissions=["<all_urls>"])
+        rule = self._rule()
+        f1 = rule.evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        f2 = rule.evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f1.instance_id != f2.instance_id
+
+    # --- evidence privacy ---
+
+    def test_evidence_no_raw_permissions(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>", "https://*.evil.com/*"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        all_values = " ".join(item.value for item in f.evidence)
+        assert "<all_urls>" not in all_values
+        assert "https://*.evil.com/*" not in all_values
+
+    def test_evidence_contains_counts_not_raw_lists(self) -> None:
+        ext = _ext(
+            permissions=["storage"],
+            host_permissions=["<all_urls>", "https://example.com/*"],
+        )
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        labels = {item.label for item in f.evidence}
+        assert "host permissions count" in labels
+        assert "permissions count" in labels
+
+    def test_evidence_counts_are_correct(self) -> None:
+        ext = _ext(
+            permissions=["storage", "tabs"],
+            host_permissions=["<all_urls>", "https://a.com/*"],
+        )
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        ev = {item.label: item.value for item in f.evidence}
+        assert ev["permissions count"] == "2"
+        assert ev["host permissions count"] == "2"
+
+    def test_evidence_manifest_path_redacted(self) -> None:
+        raw_path = r"C:\Users\alice\AppData\Local\Google\Chrome\User Data\Default\Extensions\aabb\1.0\manifest.json"
+        ext = _ext(host_permissions=["<all_urls>"], manifest_path=raw_path)
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        mp_items = [i for i in f.evidence if i.label == "manifest path"]
+        assert len(mp_items) == 1
+        assert "alice" not in mp_items[0].value
+        assert "[REDACTED]" in mp_items[0].value
+
+
+# ---------------------------------------------------------------------------
+# EXT-002 — ExtCookiesRule
+# ---------------------------------------------------------------------------
+
+
+class TestExtCookiesRule:
+    def _rule(self) -> ExtCookiesRule:
+        return ExtCookiesRule()
+
+    # --- fires ---
+
+    def test_fires_on_cookies_permission(self) -> None:
+        ext = _ext(permissions=["cookies"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert len(findings) == 1
+
+    def test_fires_with_cookies_among_other_permissions(self) -> None:
+        ext = _ext(permissions=["storage", "cookies", "tabs"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert len(findings) == 1
+
+    # --- does not fire ---
+
+    def test_no_fire_without_cookies(self) -> None:
+        ext = _ext(permissions=["storage", "tabs"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_permissions_empty(self) -> None:
+        ext = _ext(permissions=[])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_no_extensions(self) -> None:
+        findings = self._rule().evaluate({}, _SCAN_ID)
+        assert findings == []
+
+    # --- finding shape ---
+
+    def test_rule_id(self) -> None:
+        ext = _ext(permissions=["cookies"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.id == _EXT002_ID
+
+    def test_rule_version(self) -> None:
+        ext = _ext(permissions=["cookies"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.rule_version == _EXT002_VERSION
+
+    def test_severity_medium(self) -> None:
+        ext = _ext(permissions=["cookies"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.severity == Severity.MEDIUM
+
+    def test_explanation_fields_non_empty(self) -> None:
+        ext = _ext(permissions=["cookies"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert len(f.official_explanation) > 10
+        assert len(f.in_other_words) > 10
+        assert f.why_this_matters
+        assert f.recommended_action
+        assert f.safe_to_ignore_when
+
+    # --- evidence privacy ---
+
+    def test_evidence_no_raw_permissions(self) -> None:
+        ext = _ext(permissions=["cookies", "storage", "tabs"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        all_values = " ".join(item.value for item in f.evidence)
+        assert "cookies" not in all_values
+        assert "storage" not in all_values
+
+    def test_evidence_has_permissions_count(self) -> None:
+        ext = _ext(permissions=["cookies", "storage"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        ev = {item.label: item.value for item in f.evidence}
+        assert ev["permissions count"] == "2"
+
+
+# ---------------------------------------------------------------------------
+# EXT-003 — ExtScriptingWebRequestRule
+# ---------------------------------------------------------------------------
+
+
+class TestExtScriptingWebRequestRule:
+    def _rule(self) -> ExtScriptingWebRequestRule:
+        return ExtScriptingWebRequestRule()
+
+    # --- fires ---
+
+    def test_fires_on_scripting_and_webrequest(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert len(findings) == 1
+
+    def test_fires_with_extra_permissions(self) -> None:
+        ext = _ext(permissions=["storage", "scripting", "tabs", "webRequest"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert len(findings) == 1
+
+    # --- does not fire ---
+
+    def test_no_fire_scripting_only(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_webrequest_only(self) -> None:
+        ext = _ext(permissions=["webRequest"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_neither_present(self) -> None:
+        ext = _ext(permissions=["storage", "tabs"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_no_extensions(self) -> None:
+        findings = self._rule().evaluate({}, _SCAN_ID)
+        assert findings == []
+
+    # --- finding shape ---
+
+    def test_rule_id(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.id == _EXT003_ID
+
+    def test_rule_version(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.rule_version == _EXT003_VERSION
+
+    def test_severity_high(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert f.severity == Severity.HIGH
+
+    def test_explanation_fields_non_empty(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        assert len(f.official_explanation) > 10
+        assert len(f.in_other_words) > 10
+        assert f.why_this_matters
+        assert f.recommended_action
+        assert f.safe_to_ignore_when
+
+    # --- evidence privacy ---
+
+    def test_evidence_no_raw_permissions(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest", "storage"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        all_values = " ".join(item.value for item in f.evidence)
+        assert "scripting" not in all_values
+        assert "webRequest" not in all_values
+
+    def test_evidence_has_permissions_count(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest", "tabs"])
+        f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
+        ev = {item.label: item.value for item in f.evidence}
+        assert ev["permissions count"] == "3"
+
+
+# ---------------------------------------------------------------------------
+# EXT-004 — ExtBridgeCapabilityRule
+# ---------------------------------------------------------------------------
+
+
+class TestExtBridgeCapabilityRule:
+    def _rule(self) -> ExtBridgeCapabilityRule:
+        return ExtBridgeCapabilityRule()
+
+    # --- fires ---
+
+    def test_fires_when_scripting_ext_and_native_host_present(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        items = {
+            "browser_extensions": [ext],
+            "native_messaging_hosts": [_NORMAL_HOST],
+        }
+        findings = self._rule().evaluate(items, _SCAN_ID)
+        assert len(findings) == 1
+
+    def test_fires_for_each_scripting_extension(self) -> None:
+        ext1 = _ext(name="ExtA", permissions=["scripting"])
+        ext2 = _ext(name="ExtB", permissions=["scripting"])
+        items = {
+            "browser_extensions": [ext1, ext2],
+            "native_messaging_hosts": [_NORMAL_HOST],
+        }
+        findings = self._rule().evaluate(items, _SCAN_ID)
+        assert len(findings) == 2
+
+    def test_fires_with_scripting_among_other_permissions(self) -> None:
+        ext = _ext(permissions=["storage", "scripting", "tabs"])
+        items = {
+            "browser_extensions": [ext],
+            "native_messaging_hosts": [_NORMAL_HOST],
+        }
+        findings = self._rule().evaluate(items, _SCAN_ID)
+        assert len(findings) == 1
+
+    # --- does not fire ---
+
+    def test_no_fire_when_no_native_hosts(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        items = {
+            "browser_extensions": [ext],
+            "native_messaging_hosts": [],
+        }
+        findings = self._rule().evaluate(items, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_native_hosts_key_absent(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        findings = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_extension_lacks_scripting(self) -> None:
+        ext = _ext(permissions=["storage", "webRequest"])
+        items = {
+            "browser_extensions": [ext],
+            "native_messaging_hosts": [_NORMAL_HOST],
+        }
+        findings = self._rule().evaluate(items, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_no_extensions(self) -> None:
+        items = {
+            "browser_extensions": [],
+            "native_messaging_hosts": [_NORMAL_HOST],
+        }
+        findings = self._rule().evaluate(items, _SCAN_ID)
+        assert findings == []
+
+    def test_no_fire_when_both_keys_absent(self) -> None:
+        findings = self._rule().evaluate({}, _SCAN_ID)
+        assert findings == []
+
+    # --- finding shape ---
+
+    def test_rule_id(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        items = {"browser_extensions": [ext], "native_messaging_hosts": [_NORMAL_HOST]}
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        assert f.id == _EXT004_ID
+
+    def test_rule_version(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        items = {"browser_extensions": [ext], "native_messaging_hosts": [_NORMAL_HOST]}
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        assert f.rule_version == _EXT004_VERSION
+
+    def test_severity_high(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        items = {"browser_extensions": [ext], "native_messaging_hosts": [_NORMAL_HOST]}
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        assert f.severity == Severity.HIGH
+
+    def test_explanation_fields_non_empty(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        items = {"browser_extensions": [ext], "native_messaging_hosts": [_NORMAL_HOST]}
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        assert len(f.official_explanation) > 10
+        assert len(f.in_other_words) > 10
+        assert f.why_this_matters
+        assert f.recommended_action
+        assert f.safe_to_ignore_when
+
+    def test_scan_id_matches(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        items = {"browser_extensions": [ext], "native_messaging_hosts": [_NORMAL_HOST]}
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        assert f.scan_id == _SCAN_ID
+
+    # --- evidence ---
+
+    def test_evidence_includes_native_host_count(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        host2 = {**_NORMAL_HOST, "name": "com.example.bar"}
+        items = {
+            "browser_extensions": [ext],
+            "native_messaging_hosts": [_NORMAL_HOST, host2],
+        }
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        ev = {item.label: item.value for item in f.evidence}
+        assert ev["native messaging hosts count"] == "2"
+
+    def test_evidence_no_raw_permissions(self) -> None:
+        ext = _ext(permissions=["scripting", "storage"])
+        items = {"browser_extensions": [ext], "native_messaging_hosts": [_NORMAL_HOST]}
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        all_values = " ".join(item.value for item in f.evidence)
+        assert "scripting" not in all_values
+        assert "storage" not in all_values
+
+    def test_evidence_has_permissions_count(self) -> None:
+        ext = _ext(permissions=["scripting", "tabs"])
+        items = {"browser_extensions": [ext], "native_messaging_hosts": [_NORMAL_HOST]}
+        f = self._rule().evaluate(items, _SCAN_ID)[0]
+        ev = {item.label: item.value for item in f.evidence}
+        assert ev["permissions count"] == "2"
+
+
+# ---------------------------------------------------------------------------
+# All extension rules — shared evidence privacy invariant
+# ---------------------------------------------------------------------------
+
+
+class TestExtRulesEvidencePrivacy:
+    """Cross-rule: no rule may leak raw permission strings into evidence."""
+
+    _PERMS = ["cookies", "scripting", "webRequest", "storage", "tabs", "downloads"]
+    _HOST_PERMS = ["<all_urls>", "https://*.example.com/*", "https://*.evil.org/*"]
+
+    def _ext_all_perms(self) -> dict[str, Any]:
+        return _ext(permissions=self._PERMS, host_permissions=self._HOST_PERMS)
+
+    def _all_raw_strings(self) -> set[str]:
+        return set(self._PERMS) | set(self._HOST_PERMS)
+
+    def _all_evidence_values(self, rule: BaseRule) -> str:
+        ext = self._ext_all_perms()
+        items: dict[str, Any] = {
+            "browser_extensions": [ext],
+            "native_messaging_hosts": [_NORMAL_HOST],
+        }
+        findings = rule.evaluate(items, _SCAN_ID)
+        return " ".join(v for f in findings for item in f.evidence for v in [item.value])
+
+    def test_ext001_no_raw_strings_in_evidence(self) -> None:
+        values = self._all_evidence_values(ExtAllUrlsRule())
+        for raw in self._all_raw_strings():
+            assert raw not in values
+
+    def test_ext002_no_raw_strings_in_evidence(self) -> None:
+        values = self._all_evidence_values(ExtCookiesRule())
+        for raw in self._all_raw_strings():
+            assert raw not in values
+
+    def test_ext003_no_raw_strings_in_evidence(self) -> None:
+        values = self._all_evidence_values(ExtScriptingWebRequestRule())
+        for raw in self._all_raw_strings():
+            assert raw not in values
+
+    def test_ext004_no_raw_strings_in_evidence(self) -> None:
+        values = self._all_evidence_values(ExtBridgeCapabilityRule())
+        for raw in self._all_raw_strings():
+            assert raw not in values
+
+
+# ---------------------------------------------------------------------------
+# ScanEngine integration — extension rules
+# ---------------------------------------------------------------------------
+
+
+class TestScanEngineExtFindings:
+    def test_ext001_fires_via_scan_engine(self) -> None:
+        ext = _ext(host_permissions=["<all_urls>"])
+        result = ScanEngine([_bext_col([ext])]).run_scan()
+        ids = [f.id for f in result.findings]
+        assert _EXT001_ID in ids
+
+    def test_ext002_fires_via_scan_engine(self) -> None:
+        ext = _ext(permissions=["cookies"])
+        result = ScanEngine([_bext_col([ext])]).run_scan()
+        ids = [f.id for f in result.findings]
+        assert _EXT002_ID in ids
+
+    def test_ext003_fires_via_scan_engine(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest"])
+        result = ScanEngine([_bext_col([ext])]).run_scan()
+        ids = [f.id for f in result.findings]
+        assert _EXT003_ID in ids
+
+    def test_ext004_fires_via_scan_engine(self) -> None:
+        ext = _ext(permissions=["scripting"])
+        nmh = _nmh_col([_NORMAL_HOST])
+        bext = _bext_col([ext])
+        result = ScanEngine([nmh, bext]).run_scan()
+        ids = [f.id for f in result.findings]
+        assert _EXT004_ID in ids
+
+    def test_no_ext_findings_when_safe_extension(self) -> None:
+        ext = _ext(permissions=["storage"], host_permissions=["https://example.com/*"])
+        result = ScanEngine([_bext_col([ext])]).run_scan()
+        ext_ids = {f.id for f in result.findings if f.id.startswith("EXT-")}
+        assert ext_ids == set()
+
+    def test_findings_carry_correct_scan_id(self) -> None:
+        ext = _ext(permissions=["cookies"], host_permissions=["<all_urls>"])
+        result = ScanEngine([_bext_col([ext])]).run_scan()
+        for f in result.findings:
+            assert f.scan_id == result.scan_id
+
+    def test_no_raw_items_in_scan_result(self) -> None:
+        ext = _ext(permissions=["scripting", "webRequest"])
+        result = ScanEngine([_bext_col([ext])]).run_scan()
+        result_dict = result.model_dump()
+        for value in result_dict.values():
+            assert value != [ext]

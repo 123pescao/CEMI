@@ -25,6 +25,12 @@ from uuid import uuid4
 from cemi.collectors.base import BaseCollector
 from cemi.config import SCAN_VERSION
 from cemi.models import CollectorHealth, Finding, PrivilegeLevel, ScanResult
+from cemi.rules.browser_extension_rules import (
+    ExtAllUrlsRule,
+    ExtBridgeCapabilityRule,
+    ExtCookiesRule,
+    ExtScriptingWebRequestRule,
+)
 from cemi.rules.engine import RuleEngine
 from cemi.rules.native_messaging_host import NativeMessagingHostRule
 from cemi.rules.service_user_path import ServiceUserPathRule
@@ -38,6 +44,10 @@ def _build_rule_engine() -> RuleEngine:
     return RuleEngine([
         ServiceUserPathRule(),
         NativeMessagingHostRule(),
+        ExtAllUrlsRule(),
+        ExtCookiesRule(),
+        ExtScriptingWebRequestRule(),
+        ExtBridgeCapabilityRule(),
     ])
 
 
