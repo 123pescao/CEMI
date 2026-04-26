@@ -46,11 +46,44 @@ Prints the list of privacy guarantees and exits immediately. No scan is performe
 cemi privacy
 ```
 
+### Show installed version
+
+```bash
+cemi version
+```
+
 ## Running tests
 
 ```bash
 pytest
 ```
+
+## Pre-release checklist
+
+Before tagging a release, verify the following steps in order:
+
+1. Verify tests pass:
+
+   ```bash
+   pytest
+   ```
+
+2. Install locally:
+
+   ```bash
+   pip install -e .[dev]
+   ```
+
+3. Run the tool end-to-end:
+
+   ```bash
+   cemi privacy
+   cemi scan --output html
+   cemi scan --output json
+   cemi version
+   ```
+
+4. Confirm reports are saved locally under `reports/` and contain no unexpected data before sharing.
 
 ## Privacy
 

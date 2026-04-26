@@ -18,7 +18,11 @@ Users should therefore:
 
 ## Threat model
 
-CEMÍ is a defensive audit tool. It is **not** an EDR, not an anti-malware engine, and not a replacement for operating-system-level security. Findings indicate *configuration* or *posture* concerns for the user to review.
+CEMÍ is a defensive audit tool. It is **not** an EDR, not an anti-malware engine, not antivirus, and not a replacement for operating-system-level security.
+
+**CEMÍ does not prove the absence of malware.** A clean scan result means no checked patterns were detected — not that the machine is uncompromised.
+
+CEMÍ detects privacy- and security-relevant behaviors based on local evidence: installed software, running services, browser extensions, and native messaging hosts. Findings indicate *configuration* or *posture* concerns for the user to review.
 
 ## Reporting vulnerabilities
 

@@ -229,6 +229,13 @@ def privacy() -> None:
         _console.print(f"  {guarantee}")
 
 
+@app.command()
+def version() -> None:
+    """Print the installed CEMÍ version."""
+    import cemi as _cemi
+    _console.print(f"CEMÍ {_cemi.__version__}")
+
+
 def main() -> None:
     """Setuptools / `pyproject.toml` console-script entry point."""
     app()
