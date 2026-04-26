@@ -626,3 +626,163 @@ class TestRiskOutput:
         assert result.exit_code == 0
         assert "Risk score:" in result.output
         assert "Risk level:" in result.output
+
+
+# ---------------------------------------------------------------------------
+# CLI header and section structure
+# ---------------------------------------------------------------------------
+
+
+class TestCliHeader:
+    def test_cemi_scan_results_header_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "CEMÍ SCAN RESULTS" in result.output
+
+    def test_risk_summary_section_label_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "Risk Summary" in result.output
+
+    def test_collectors_section_label_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "Collectors" in result.output
+
+    def test_summary_section_label_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "Summary" in result.output
+
+    def test_risk_why_this_matters_label_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "Why this matters:" in result.output
+
+    def test_risk_why_text_none_level(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "No security concerns" in result.output
+
+    def test_risk_why_text_changes_with_finding(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["--yes"])
+        assert "No security concerns" not in result.output
+
+    def test_header_not_shown_for_privacy_flag(self) -> None:
+        result = runner.invoke(app, ["--privacy"])
+        assert "CEMÍ SCAN RESULTS" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Findings grouped by severity
+# ---------------------------------------------------------------------------
+
+# Extension dict that triggers ExtScriptingWebRequestRule (EXT-003) → HIGH.
+_HIGH_EXT = {
+    "name": "ScriptingExt",
+    "browser": "chrome",
+    "version": "1.0.0",
+    "permissions": ["scripting", "webRequest"],
+    "host_permissions": [],
+    "manifest_path": r"C:\Users\[REDACTED]\AppData\Local\Google\Chrome\User Data\Default\Extensions\ext\1.0_0\manifest.json",
+}
+
+
+@contextmanager
+def _patch_with_high_finding():
+    """Patch collectors so EXT-003 fires, producing one HIGH finding."""
+    apps_health = _make_health(collector_name="installed_apps")
+    svcs_health = _make_health(collector_name="services")
+    nmh_health = _make_health(collector_name="native_messaging_hosts")
+    bext_health = _make_health(collector_name="browser_extensions", items_collected=1)
+    with (
+        patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
+        patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health)),
+        patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
+        patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health, [_HIGH_EXT])),
+        patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
+        patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
+    ):
+        yield
+
+
+class TestFindingsGroupedBySeverity:
+    def test_medium_group_present_with_medium_finding(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["--yes"])
+        assert "MEDIUM" in result.output
+
+    def test_high_group_present_with_high_finding(self) -> None:
+        with _patch_with_high_finding():
+            result = runner.invoke(app, ["--yes"])
+        assert "HIGH" in result.output
+
+    def test_high_before_medium_when_both_present(self) -> None:
+        # Both HIGH (EXT-003) and MEDIUM (SVC-001) fire simultaneously.
+        apps_health = _make_health(collector_name="installed_apps")
+        svcs_health = _make_health(collector_name="services", items_collected=1)
+        nmh_health = _make_health(collector_name="native_messaging_hosts")
+        bext_health = _make_health(collector_name="browser_extensions", items_collected=1)
+        with (
+            patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
+            patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health, [_USER_PATH_SVC])),
+            patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
+            patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health, [_HIGH_EXT])),
+            patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
+            patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
+        ):
+            result = runner.invoke(app, ["--yes"])
+        output = result.output
+        assert "HIGH" in output
+        assert "MEDIUM" in output
+        assert output.index("HIGH") < output.index("MEDIUM")
+
+    def test_no_findings_message_present_when_empty(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "No findings detected." in result.output
+
+
+# ---------------------------------------------------------------------------
+# Summary section counts
+# ---------------------------------------------------------------------------
+
+
+class TestSummaryCounts:
+    def test_medium_finding_count_in_summary(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["--yes"])
+        assert "1 medium finding" in result.output
+
+    def test_high_finding_count_in_summary(self) -> None:
+        with _patch_with_high_finding():
+            result = runner.invoke(app, ["--yes"])
+        assert "1 high finding" in result.output
+
+    def test_no_finding_count_with_no_findings(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "medium finding" not in result.output
+        assert "high finding" not in result.output
+
+    def test_plural_count_for_multiple_findings(self) -> None:
+        # Two MEDIUM findings → "2 medium findings"
+        apps_health = _make_health(collector_name="installed_apps")
+        svcs_health = _make_health(collector_name="services", items_collected=2)
+        nmh_health = _make_health(collector_name="native_messaging_hosts")
+        bext_health = _make_health(collector_name="browser_extensions")
+        svc2 = dict(_USER_PATH_SVC, name="EvilSvc2")
+        with (
+            patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
+            patch(
+                "cemi.main.ServicesCollector",
+                return_value=_mock_run(svcs_health, [_USER_PATH_SVC, svc2]),
+            ),
+            patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
+            patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health)),
+            patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
+            patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
+        ):
+            result = runner.invoke(app, ["--yes"])
+        assert "2 medium findings" in result.output

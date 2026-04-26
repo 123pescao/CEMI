@@ -747,3 +747,141 @@ class TestGenerateHtmlReportRiskSummary:
         assert data["risk_summary"]["score"] == 30
         assert data["risk_summary"]["level"] == "medium"
         assert data["risk_summary"]["finding_counts"] == {"HIGH": 1}
+
+
+# ---------------------------------------------------------------------------
+# HTML report — top banner
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateHtmlReportBanner:
+    def test_banner_present_in_html(self) -> None:
+        html = generate_html_report(_make_result())
+        assert "risk-banner" in html
+
+    def test_banner_none_class_for_no_findings(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "risk-banner-none" in html
+
+    def test_banner_low_class_for_low_risk(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.LOW)])
+        html = generate_html_report(result)
+        assert "risk-banner-low" in html
+
+    def test_banner_medium_class_for_medium_risk(self) -> None:
+        # HIGH finding → score 30 → level "medium"
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
+        html = generate_html_report(result)
+        assert "risk-banner-medium" in html
+
+    def test_banner_high_class_for_high_risk(self) -> None:
+        # 2×HIGH → score 60 → level "high"
+        result = _make_result(findings=[
+            _make_finding(severity=Severity.HIGH),
+            _make_finding(severity=Severity.HIGH),
+        ])
+        html = generate_html_report(result)
+        assert "risk-banner-high" in html
+
+    def test_banner_critical_class_for_critical_risk(self) -> None:
+        # 3×HIGH → score 90 → level "critical"
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)] * 3)
+        html = generate_html_report(result)
+        assert "risk-banner-critical" in html
+
+    def test_banner_shows_risk_level_text(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "NONE" in html
+
+    def test_banner_shows_score(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "0/100" in html
+
+
+# ---------------------------------------------------------------------------
+# HTML report — "Why This Matters" risk explanation
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateHtmlReportRiskWhyThisMatters:
+    def test_why_this_matters_label_in_risk_summary(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "Why This Matters" in html
+
+    def test_none_level_explanation_present(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "No security concerns" in html
+
+    def test_low_level_explanation_present(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.LOW)])
+        html = generate_html_report(result)
+        assert "Minor concerns" in html
+
+    def test_medium_level_explanation_present(self) -> None:
+        # HIGH finding → score 30 → level "medium"
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
+        html = generate_html_report(result)
+        assert "warrant attention" in html
+
+    def test_high_level_explanation_present(self) -> None:
+        # 2×HIGH → score 60 → level "high"
+        result = _make_result(findings=[
+            _make_finding(severity=Severity.HIGH),
+            _make_finding(severity=Severity.HIGH),
+        ])
+        html = generate_html_report(result)
+        assert "promptly" in html
+
+    def test_critical_level_explanation_present(self) -> None:
+        # 3×HIGH → score 90 → level "critical"
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)] * 3)
+        html = generate_html_report(result)
+        assert "immediate action" in html.lower()
+
+
+# ---------------------------------------------------------------------------
+# HTML report — findings grouped by severity
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateHtmlReportFindingsGrouped:
+    def test_severity_group_header_present_with_high_finding(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
+        html = generate_html_report(result)
+        assert "severity-group-HIGH" in html
+
+    def test_severity_group_header_present_with_medium_finding(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.MEDIUM)])
+        html = generate_html_report(result)
+        assert "severity-group-MEDIUM" in html
+
+    def test_high_finding_rendered_before_low_finding(self) -> None:
+        result = _make_result(findings=[
+            _make_finding(title="Low Finding", severity=Severity.LOW),
+            _make_finding(title="High Finding", severity=Severity.HIGH),
+        ])
+        html = generate_html_report(result)
+        assert html.index("High Finding") < html.index("Low Finding")
+
+    def test_no_severity_group_headers_when_no_findings(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert '<h3 class="severity-group-header' not in html
+
+    def test_findings_summary_badge_present_with_findings(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
+        html = generate_html_report(result)
+        assert '<p class="findings-summary">' in html
+
+    def test_findings_summary_absent_when_no_findings(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert '<p class="findings-summary">' not in html
+
+    def test_findings_summary_shows_severity_count(self) -> None:
+        result = _make_result(findings=[
+            _make_finding(severity=Severity.HIGH),
+            _make_finding(severity=Severity.HIGH),
+            _make_finding(severity=Severity.MEDIUM),
+        ])
+        html = generate_html_report(result)
+        assert "HIGH: 2" in html
+        assert "MEDIUM: 1" in html

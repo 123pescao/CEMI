@@ -67,30 +67,57 @@ _SEVERITY_STYLES: dict[str, str] = {
     "CRITICAL": "bold red",
 }
 
+_RISK_LEVEL_STYLES: dict[str, str] = {
+    "none": "green",
+    "low": "green",
+    "medium": "yellow",
+    "high": "red",
+    "critical": "bold red",
+}
+
+_RISK_LEVEL_WHY: dict[str, str] = {
+    "none": "No security concerns detected. Your system looks clean based on the checks performed.",
+    "low": "Minor concerns detected. Review the findings when convenient — none are immediately urgent.",
+    "medium": "Moderate risk detected. Some findings warrant attention. Review and address them soon.",
+    "high": "High risk detected. Address these findings promptly to reduce security exposure.",
+    "critical": "Critical security issues detected. Take immediate action to review and address all findings.",
+}
+
+_SEVERITY_ORDER: list[str] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+
 
 def _print_findings(findings: list[Finding]) -> None:
-    """Print all findings to the console, or a clean no-findings message."""
+    """Print findings grouped by severity, or a clean no-findings message."""
+    _console.print("\n[bold]Findings[/bold]")
     if not findings:
-        _console.print("No findings detected.")
+        _console.print("  No findings detected.")
         return
 
-    _console.print("\n[bold]Findings[/bold]")
+    by_severity: dict[str, list[Finding]] = {}
     for f in findings:
-        style = _SEVERITY_STYLES.get(f.severity.value, "white")
-        _console.print(f"\n[bold]{escape(f.title)}[/bold]")
-        _console.print(f"  Severity: [{style}]{f.severity.value}[/{style}]")
-        if f.app:
-            _console.print(f"  App: {escape(f.app)}")
-        _console.print(f"\n  [bold]Official Explanation[/bold]")
-        _console.print(f"  {escape(f.official_explanation)}")
-        _console.print(f"\n  [bold]In Other Words[/bold]")
-        _console.print(f"  {escape(f.in_other_words)}")
-        _console.print(f"\n  [bold]Why This Matters[/bold]")
-        _console.print(f"  {escape(f.why_this_matters)}")
-        _console.print(f"\n  [bold]Recommended Action[/bold]")
-        _console.print(f"  {escape(f.recommended_action)}")
-        n = len(f.evidence)
-        _console.print(f"\n  Evidence: {n} supporting item{'s' if n != 1 else ''}")
+        by_severity.setdefault(f.severity.value, []).append(f)
+
+    for sev in _SEVERITY_ORDER:
+        group = by_severity.get(sev, [])
+        if not group:
+            continue
+        style = _SEVERITY_STYLES.get(sev, "white")
+        _console.print(f"\n  [{style}][bold]{sev}[/bold][/{style}]")
+        for f in group:
+            _console.print(f"\n  [bold]{escape(f.title)}[/bold]")
+            _console.print(f"    Severity: [{style}]{f.severity.value}[/{style}]")
+            if f.app:
+                _console.print(f"    App: {escape(f.app)}")
+            _console.print(f"\n    [bold]Official Explanation[/bold]")
+            _console.print(f"    {escape(f.official_explanation)}")
+            _console.print(f"\n    [bold]In Other Words[/bold]")
+            _console.print(f"    {escape(f.in_other_words)}")
+            _console.print(f"\n    [bold]Why This Matters[/bold]")
+            _console.print(f"    {escape(f.why_this_matters)}")
+            _console.print(f"\n    [bold]Recommended Action[/bold]")
+            _console.print(f"    {escape(f.recommended_action)}")
+            n = len(f.evidence)
+            _console.print(f"\n    Evidence: {n} supporting item{'s' if n != 1 else ''}")
 
 
 def _print_collector_summary(health: CollectorHealth) -> None:
@@ -171,16 +198,35 @@ def scan(
         0,
     )
 
+    _console.print("\n[bold]CEMÍ SCAN RESULTS[/bold]")
     _console.print("Scan complete.")
-    _console.print(f"  Installed apps found: {result.total_apps_scanned}")
-    _console.print(f"  Services found: {svcs_count}")
-    _console.print(f"  Browser extensions found: {bext_count}")
+
+    level = result.risk_summary.level
+    level_style = _RISK_LEVEL_STYLES.get(level, "white")
+    _console.print("\n[bold]Risk Summary[/bold]")
     _console.print(f"  Risk score: {result.risk_summary.score}/100")
-    _console.print(f"  Risk level: {result.risk_summary.level}")
+    _console.print(f"  Risk level: [{level_style}]{level}[/{level_style}]")
+    _console.print(f"  Why this matters: {_RISK_LEVEL_WHY.get(level, '')}")
+
+    _console.print("\n[bold]Collectors[/bold]")
     for health in result.collector_health:
         _print_collector_summary(health)
 
     _print_findings(result.findings)
+
+    _console.print("\n[bold]Summary[/bold]")
+    _console.print(f"  Installed apps found: {result.total_apps_scanned}")
+    _console.print(f"  Services found: {svcs_count}")
+    _console.print(f"  Browser extensions found: {bext_count}")
+    counts = result.risk_summary.finding_counts
+    for sev in _SEVERITY_ORDER:
+        if sev == "INFO":
+            continue
+        count = counts.get(sev, 0)
+        if count > 0:
+            sev_style = _SEVERITY_STYLES.get(sev, "white")
+            plural = "s" if count != 1 else ""
+            _console.print(f"  [{sev_style}]{count} {sev.lower()} finding{plural}[/{sev_style}]")
 
     if output == OutputFormat.html:
         html = generate_html_report(result)
