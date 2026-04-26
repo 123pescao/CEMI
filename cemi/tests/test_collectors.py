@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from CEMI.cemi.src.cemi.collectors.base import BaseCollector
-from CEMI.cemi.src.cemi.models import CollectorHealth
+from cemi.collectors.base import BaseCollector
+from cemi.models import CollectorHealth
 
 
 class _FailingCollector(BaseCollector):

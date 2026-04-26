@@ -8,8 +8,8 @@ from typer.testing import CliRunner
 
 from pathlib import Path
 
-from CEMI.cemi.src.cemi.main import app
-from CEMI.cemi.src.cemi.models import CollectorHealth, ScanResult
+from cemi.main import app
+from cemi.models import CollectorHealth, ScanResult
 
 _FAKE_REPORT_PATH = Path("reports/cemi_report_fake.html")
 _FAKE_JSON_PATH = Path("reports/cemi_report_fake.json")
@@ -439,3 +439,63 @@ class TestNativeMessagingHostsSummary:
         result = runner.invoke(app, ["--yes"])
         assert result.exit_code == 0
         assert "native_messaging_hosts" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Privacy flag
+# ---------------------------------------------------------------------------
+
+
+class TestPrivacyFlag:
+    def test_exit_code_zero(self) -> None:
+        result = runner.invoke(app, ["--privacy"])
+        assert result.exit_code == 0
+
+    def test_privacy_guarantees_in_output(self) -> None:
+        result = runner.invoke(app, ["--privacy"])
+        assert "No telemetry" in result.output
+        assert "No network upload" in result.output
+        assert "No browser history reading" in result.output
+        assert "No cookie reading" in result.output
+        assert "No personal document scanning" in result.output
+        assert "Reports are local" in result.output
+
+    def test_collectors_not_called(self) -> None:
+        apps_cls = MagicMock()
+        svcs_cls = MagicMock()
+        nmh_cls = MagicMock()
+        with (
+            patch("cemi.main.InstalledAppsCollector", apps_cls),
+            patch("cemi.main.ServicesCollector", svcs_cls),
+            patch("cemi.main.NativeMessagingHostsCollector", nmh_cls),
+        ):
+            runner.invoke(app, ["--privacy"])
+        apps_cls.assert_not_called()
+        svcs_cls.assert_not_called()
+        nmh_cls.assert_not_called()
+
+    def test_save_html_report_not_called(self) -> None:
+        save_html = MagicMock()
+        with (
+            patch("cemi.main.InstalledAppsCollector"),
+            patch("cemi.main.ServicesCollector"),
+            patch("cemi.main.NativeMessagingHostsCollector"),
+            patch("cemi.main.save_html_report", save_html),
+        ):
+            runner.invoke(app, ["--privacy"])
+        save_html.assert_not_called()
+
+    def test_save_json_report_not_called(self) -> None:
+        save_json = MagicMock()
+        with (
+            patch("cemi.main.InstalledAppsCollector"),
+            patch("cemi.main.ServicesCollector"),
+            patch("cemi.main.NativeMessagingHostsCollector"),
+            patch("cemi.main.save_json_report", save_json),
+        ):
+            runner.invoke(app, ["--privacy"])
+        save_json.assert_not_called()
+
+    def test_scan_does_not_run(self) -> None:
+        result = runner.invoke(app, ["--privacy"])
+        assert "Scan complete" not in result.output

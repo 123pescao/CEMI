@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from typing import Final
 
-from CEMI.cemi.src.cemi.models import EvidenceItem
+from cemi.models import EvidenceItem
 
 # Public markers. These also appear in ``cemi.config`` and are re-declared
 # here so this module remains usable even with a stripped-down config.

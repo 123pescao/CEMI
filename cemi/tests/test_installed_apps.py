@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from CEMI.cemi.src.cemi.collectors.installed_apps import InstalledAppsCollector
-from CEMI.cemi.src.cemi.models import CollectorHealth
+from cemi.collectors.installed_apps import InstalledAppsCollector
+from cemi.models import CollectorHealth
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ class TestInstalledAppsCollectorNonWindows:
         assert health.items_collected >= 0
 
     def test_skips_gracefully_without_winreg(self) -> None:
-        import CEMI.cemi.src.cemi.collectors.installed_apps as mod
+        import cemi.collectors.installed_apps as mod
 
         if mod._WINREG_AVAILABLE:
             pytest.skip("winreg is available on this platform")

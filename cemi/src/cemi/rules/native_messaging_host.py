@@ -17,15 +17,15 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from CEMI.cemi.src.cemi.models import (
+from cemi.models import (
     Confidence,
     EvidenceItem,
     EvidenceType,
     Finding,
     Severity,
 )
-from CEMI.cemi.src.cemi.rules.engine import BaseRule
-from CEMI.cemi.src.cemi.utils.redact import redact_path
+from cemi.rules.engine import BaseRule
+from cemi.utils.redact import redact_path
 
 # ---------------------------------------------------------------------------
 # Rule identity

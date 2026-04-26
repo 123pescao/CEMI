@@ -12,8 +12,8 @@ from uuid import uuid4
 import pytest
 from typer.testing import CliRunner
 
-from CEMI.cemi.src.cemi.main import app
-from CEMI.cemi.src.cemi.models import (
+from cemi.main import app
+from cemi.models import (
     CollectorHealth,
     Confidence,
     EvidenceItem,
@@ -22,7 +22,7 @@ from CEMI.cemi.src.cemi.models import (
     ScanResult,
     Severity,
 )
-from CEMI.cemi.src.cemi.reports.generator import generate_html_report, save_html_report, save_json_report
+from cemi.reports.generator import generate_html_report, save_html_report, save_json_report
 
 _FAKE_REPORT_PATH = Path("reports/cemi_report_fake.html")
 _FAKE_JSON_PATH = Path("reports/cemi_report_fake.json")

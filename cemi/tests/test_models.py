@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from CEMI.cemi.src.cemi.models import (
+from cemi.models import (
     CollectorHealth,
     Confidence,
     EvidenceItem,

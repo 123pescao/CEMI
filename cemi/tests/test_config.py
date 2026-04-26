@@ -1,7 +1,7 @@
 """Tests for cemi.config."""
 from __future__ import annotations
 
-from CEMI.cemi.src.cemi.config import get_template_env
+from cemi.config import get_template_env
 
 
 def test_jinja2_autoescape_enabled() -> None:

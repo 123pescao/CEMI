@@ -10,13 +10,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from CEMI.cemi.src.cemi.collectors.native_messaging import (
+from cemi.collectors.native_messaging import (
     NativeMessagingHostsCollector,
     _candidate_dirs,
     _read_manifest,
     _scan_directory,
 )
-from CEMI.cemi.src.cemi.models import CollectorHealth
+from cemi.models import CollectorHealth
 
 
 # ---------------------------------------------------------------------------

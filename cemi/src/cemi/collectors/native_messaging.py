@@ -17,9 +17,9 @@ import sys
 import time
 from typing import Any, ClassVar, Optional
 
-from CEMI.cemi.src.cemi.collectors.base import BaseCollector
-from CEMI.cemi.src.cemi.models import CollectorHealth, PrivilegeLevel
-from CEMI.cemi.src.cemi.utils.redact import redact_path, redact_string
+from cemi.collectors.base import BaseCollector
+from cemi.models import CollectorHealth, PrivilegeLevel
+from cemi.utils.redact import redact_path, redact_string
 
 # Platform gate — patchable in tests.
 _IS_WINDOWS: bool = sys.platform == "win32"

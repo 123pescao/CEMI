@@ -22,12 +22,12 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from CEMI.cemi.src.cemi.collectors.base import BaseCollector
-from CEMI.cemi.src.cemi.config import SCAN_VERSION
-from CEMI.cemi.src.cemi.models import CollectorHealth, Finding, PrivilegeLevel, ScanResult
-from CEMI.cemi.src.cemi.rules.engine import RuleEngine
-from CEMI.cemi.src.cemi.rules.native_messaging_host import NativeMessagingHostRule
-from CEMI.cemi.src.cemi.rules.service_user_path import ServiceUserPathRule
+from cemi.collectors.base import BaseCollector
+from cemi.config import SCAN_VERSION
+from cemi.models import CollectorHealth, Finding, PrivilegeLevel, ScanResult
+from cemi.rules.engine import RuleEngine
+from cemi.rules.native_messaging_host import NativeMessagingHostRule
+from cemi.rules.service_user_path import ServiceUserPathRule
 
 #: Name used by InstalledAppsCollector to identify itself in health records.
 _INSTALLED_APPS_NAME = "installed_apps"

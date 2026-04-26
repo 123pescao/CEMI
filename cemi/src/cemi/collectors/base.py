@@ -21,8 +21,8 @@ import traceback
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, get_args
 
-from CEMI.cemi.src.cemi.models import CollectorHealth, PrivilegeLevel
-from CEMI.cemi.src.cemi.utils.redact import redact_string
+from cemi.models import CollectorHealth, PrivilegeLevel
+from cemi.utils.redact import redact_string
 
 
 class BaseCollector(ABC):

@@ -11,7 +11,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from CEMI.cemi.src.cemi.models import Finding
+from cemi.models import Finding
 
 
 class BaseRule(ABC):

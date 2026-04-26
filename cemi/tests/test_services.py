@@ -5,11 +5,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from CEMI.cemi.src.cemi.collectors.services import (
+from cemi.collectors.services import (
     ServicesCollector,
     _redact_service_username,
 )
-from CEMI.cemi.src.cemi.models import CollectorHealth
+from cemi.models import CollectorHealth
 
 
 # ---------------------------------------------------------------------------

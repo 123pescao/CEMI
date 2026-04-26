@@ -10,9 +10,9 @@ from __future__ import annotations
 import time
 from typing import Any, ClassVar, Optional
 
-from CEMI.cemi.src.cemi.collectors.base import BaseCollector
-from CEMI.cemi.src.cemi.models import CollectorHealth, PrivilegeLevel
-from CEMI.cemi.src.cemi.utils.redact import redact_path, redact_string
+from cemi.collectors.base import BaseCollector
+from cemi.models import CollectorHealth, PrivilegeLevel
+from cemi.utils.redact import redact_path, redact_string
 
 try:
     import psutil as _psutil  # type: ignore[import]

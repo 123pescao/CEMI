@@ -6,19 +6,19 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from CEMI.cemi.src.cemi.models import CollectorHealth, Confidence, EvidenceType, Finding, Severity
-from CEMI.cemi.src.cemi.rules.engine import BaseRule, RuleEngine
-from CEMI.cemi.src.cemi.rules.native_messaging_host import (
+from cemi.models import CollectorHealth, Confidence, EvidenceType, Finding, Severity
+from cemi.rules.engine import BaseRule, RuleEngine
+from cemi.rules.native_messaging_host import (
     RULE_ID as NMH_RULE_ID,
     RULE_VERSION as NMH_RULE_VERSION,
     NativeMessagingHostRule,
 )
-from CEMI.cemi.src.cemi.rules.service_user_path import (
+from cemi.rules.service_user_path import (
     RULE_ID,
     RULE_VERSION,
     ServiceUserPathRule,
 )
-from CEMI.cemi.src.cemi.scan_engine import ScanEngine
+from cemi.scan_engine import ScanEngine
 
 
 # ---------------------------------------------------------------------------
@@ -240,11 +240,11 @@ class TestServiceUserPathRuleFindingShape:
         assert self._finding().recommended_action
 
     def test_finding_severity_medium(self) -> None:
-        from CEMI.cemi.src.cemi.models import Severity
+        from cemi.models import Severity
         assert self._finding().severity == Severity.MEDIUM
 
     def test_finding_confidence_medium(self) -> None:
-        from CEMI.cemi.src.cemi.models import Confidence
+        from cemi.models import Confidence
         assert self._finding().confidence == Confidence.MEDIUM
 
     def test_finding_category_service(self) -> None:
@@ -286,7 +286,7 @@ class TestServiceUserPathRuleEvidence:
         assert len(self._finding().evidence) >= 1
 
     def test_evidence_type_is_file_path(self) -> None:
-        from CEMI.cemi.src.cemi.models import EvidenceType
+        from cemi.models import EvidenceType
         assert self._finding().evidence[0].type == EvidenceType.FILE_PATH
 
     def test_evidence_value_contains_redacted_not_raw_username(self) -> None:
@@ -374,7 +374,7 @@ class TestScanEngineFindings:
     def test_scan_engine_does_not_crash_on_rule_error(self) -> None:
         svc_col = _mock_collector("services", [_USER_PATH_SVC])
         # Patch rule engine to simulate crash
-        import CEMI.cemi.src.cemi.scan_engine as se
+        import cemi.scan_engine as se
         original = se._build_rule_engine
 
         class CrashEngine:

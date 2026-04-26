@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from CEMI.cemi.src.cemi.models import EvidenceItem, EvidenceType
-from CEMI.cemi.src.cemi.utils.redact import (
+from cemi.models import EvidenceItem, EvidenceType
+from cemi.utils.redact import (
     REDACTED,
     REDACTED_TOKEN,
     redact_evidence_item,

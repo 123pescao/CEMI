@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from CEMI.cemi.src.cemi.models import CollectorHealth, ScanResult
-from CEMI.cemi.src.cemi.scan_engine import ScanEngine, _effective_privilege, _hash_hostname
+from cemi.models import CollectorHealth, ScanResult
+from cemi.scan_engine import ScanEngine, _effective_privilege, _hash_hostname
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +232,6 @@ class TestNoExceptions:
         ScanEngine([]).run_scan()
 
     def test_run_scan_no_exception_with_real_collectors(self) -> None:
-        from CEMI.cemi.src.cemi.collectors.installed_apps import InstalledAppsCollector
-        from CEMI.cemi.src.cemi.collectors.services import ServicesCollector
+        from cemi.collectors.installed_apps import InstalledAppsCollector
+        from cemi.collectors.services import ServicesCollector
         ScanEngine([InstalledAppsCollector(), ServicesCollector()]).run_scan()

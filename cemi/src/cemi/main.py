@@ -20,13 +20,13 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 
-from CEMI.cemi.src.cemi.collectors.installed_apps import InstalledAppsCollector
-from CEMI.cemi.src.cemi.collectors.native_messaging import NativeMessagingHostsCollector
-from CEMI.cemi.src.cemi.collectors.services import ServicesCollector
-from CEMI.cemi.src.cemi.config import PRIVACY_NOTICE, TOOL_NAME, TOOL_TAGLINE
-from CEMI.cemi.src.cemi.models import CollectorHealth, Finding
-from CEMI.cemi.src.cemi.reports import generate_html_report, save_html_report, save_json_report
-from CEMI.cemi.src.cemi.scan_engine import ScanEngine
+from cemi.collectors.installed_apps import InstalledAppsCollector
+from cemi.collectors.native_messaging import NativeMessagingHostsCollector
+from cemi.collectors.services import ServicesCollector
+from cemi.config import PRIVACY_NOTICE, TOOL_NAME, TOOL_TAGLINE
+from cemi.models import CollectorHealth, Finding
+from cemi.reports import generate_html_report, save_html_report, save_json_report
+from cemi.scan_engine import ScanEngine
 
 app = typer.Typer(
     name="cemi",
@@ -112,6 +112,16 @@ def _print_collector_summary(health: CollectorHealth) -> None:
             _console.print(f"    {err}")
 
 
+_PRIVACY_GUARANTEES: list[str] = [
+    "No telemetry",
+    "No network upload",
+    "No browser history reading",
+    "No cookie reading",
+    "No personal document scanning",
+    "Reports are local",
+]
+
+
 @app.command()
 def scan(
     output: OutputFormat = typer.Option(
@@ -129,8 +139,19 @@ def scan(
         "--yes",
         help="Skip the interactive privacy confirmation.",
     ),
+    privacy: bool = typer.Option(
+        False,
+        "--privacy",
+        help="Show privacy guarantees and exit without running a scan.",
+    ),
 ) -> None:
     """Run a local, metadata-only scan of this machine."""
+    if privacy:
+        _console.print("[bold]CEMÍ Privacy Guarantees[/bold]")
+        for guarantee in _PRIVACY_GUARANTEES:
+            _console.print(f"  {guarantee}")
+        return
+
     _confirm_privacy(yes)
 
     result = ScanEngine([
