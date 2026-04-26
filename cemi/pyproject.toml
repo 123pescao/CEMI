@@ -33,7 +33,7 @@ dependencies = [
 dev = ["pytest"]
 
 [project.scripts]
-cemi = "cemi.main:main"
+cemi = "cemi.main:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cemi"]

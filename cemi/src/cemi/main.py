@@ -1,14 +1,9 @@
 """CLI entry point for CEMÍ.
 
-The CLI is intentionally minimal in this phase:
+Two subcommands are available:
 
-* It defines a single ``scan`` command.
-* Before doing anything it prints an explicit privacy notice and waits
-  for confirmation (unless ``--yes`` is passed).
-* It delegates collection to :class:`~cemi.scan_engine.ScanEngine` and
-  prints a plain-text summary of the resulting :class:`~cemi.models.ScanResult`.
-  Report generation (html/json) is a stub — the ``--output`` flag is
-  accepted and validated but does not yet produce a file.
+* ``cemi scan``     — run a local, metadata-only scan and save a report.
+* ``cemi privacy``  — display privacy guarantees and exit immediately.
 """
 from __future__ import annotations
 
@@ -155,7 +150,7 @@ def scan(
     output: OutputFormat = typer.Option(
         OutputFormat.html,
         "--output",
-        help="Output format for the (eventual) report. Choices: html, json.",
+        help="Report format: html (default) or json. The report is saved locally — never uploaded.",
     ),
     app_filter: Optional[str] = typer.Option(
         None,
@@ -165,21 +160,10 @@ def scan(
     yes: bool = typer.Option(
         False,
         "--yes",
-        help="Skip the interactive privacy confirmation.",
-    ),
-    privacy: bool = typer.Option(
-        False,
-        "--privacy",
-        help="Show privacy guarantees and exit without running a scan.",
+        help="Skip the interactive privacy confirmation prompt.",
     ),
 ) -> None:
-    """Run a local, metadata-only scan of this machine."""
-    if privacy:
-        _console.print("[bold]CEMÍ Privacy Guarantees[/bold]")
-        for guarantee in _PRIVACY_GUARANTEES:
-            _console.print(f"  {guarantee}")
-        return
-
+    """Run a local, metadata-only scan. All analysis and reports stay on this machine."""
     _confirm_privacy(yes)
 
     result = ScanEngine([
@@ -235,6 +219,14 @@ def scan(
     elif output == OutputFormat.json:
         report_path = save_json_report(result, Path("reports"))
         _console.print(f"JSON report saved to: {report_path}")
+
+
+@app.command()
+def privacy() -> None:
+    """Show CEMÍ privacy guarantees and exit. No scan is performed."""
+    _console.print("[bold]CEMÍ Privacy Guarantees[/bold]")
+    for guarantee in _PRIVACY_GUARANTEES:
+        _console.print(f"  {guarantee}")
 
 
 def main() -> None:
