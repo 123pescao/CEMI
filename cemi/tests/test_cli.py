@@ -54,19 +54,23 @@ def _patch_both(
     apps_health: CollectorHealth | None = None,
     svcs_health: CollectorHealth | None = None,
     nmh_health: CollectorHealth | None = None,
+    bext_health: CollectorHealth | None = None,
 ):
-    """Patch all three collectors simultaneously for clean, isolated CLI tests."""
+    """Patch all four collectors simultaneously for clean, isolated CLI tests."""
     if apps_health is None:
         apps_health = _make_health(collector_name="installed_apps")
     if svcs_health is None:
         svcs_health = _make_health(collector_name="services")
     if nmh_health is None:
         nmh_health = _make_health(collector_name="native_messaging_hosts")
+    if bext_health is None:
+        bext_health = _make_health(collector_name="browser_extensions")
 
     with (
         patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
         patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health)),
         patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
+        patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health)),
         patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
         patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
     ):
@@ -307,10 +311,12 @@ def _patch_with_finding():
     apps_health = _make_health(collector_name="installed_apps")
     svcs_health = _make_health(collector_name="services", items_collected=1)
     nmh_health = _make_health(collector_name="native_messaging_hosts")
+    bext_health = _make_health(collector_name="browser_extensions")
     with (
         patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
         patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health, [_USER_PATH_SVC])),
         patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
+        patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health)),
         patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
         patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
     ):
@@ -464,15 +470,18 @@ class TestPrivacyFlag:
         apps_cls = MagicMock()
         svcs_cls = MagicMock()
         nmh_cls = MagicMock()
+        bext_cls = MagicMock()
         with (
             patch("cemi.main.InstalledAppsCollector", apps_cls),
             patch("cemi.main.ServicesCollector", svcs_cls),
             patch("cemi.main.NativeMessagingHostsCollector", nmh_cls),
+            patch("cemi.main.BrowserExtensionsCollector", bext_cls),
         ):
             runner.invoke(app, ["--privacy"])
         apps_cls.assert_not_called()
         svcs_cls.assert_not_called()
         nmh_cls.assert_not_called()
+        bext_cls.assert_not_called()
 
     def test_save_html_report_not_called(self) -> None:
         save_html = MagicMock()
@@ -480,6 +489,7 @@ class TestPrivacyFlag:
             patch("cemi.main.InstalledAppsCollector"),
             patch("cemi.main.ServicesCollector"),
             patch("cemi.main.NativeMessagingHostsCollector"),
+            patch("cemi.main.BrowserExtensionsCollector"),
             patch("cemi.main.save_html_report", save_html),
         ):
             runner.invoke(app, ["--privacy"])
@@ -491,6 +501,7 @@ class TestPrivacyFlag:
             patch("cemi.main.InstalledAppsCollector"),
             patch("cemi.main.ServicesCollector"),
             patch("cemi.main.NativeMessagingHostsCollector"),
+            patch("cemi.main.BrowserExtensionsCollector"),
             patch("cemi.main.save_json_report", save_json),
         ):
             runner.invoke(app, ["--privacy"])
@@ -499,3 +510,66 @@ class TestPrivacyFlag:
     def test_scan_does_not_run(self) -> None:
         result = runner.invoke(app, ["--privacy"])
         assert "Scan complete" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Browser extensions collector — CLI summary
+# ---------------------------------------------------------------------------
+
+
+class TestBrowserExtensionsSummary:
+    def test_collector_name_in_output(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "browser_extensions" in result.output
+
+    def test_browser_extensions_count_label_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "Browser extensions found:" in result.output
+
+    def test_shows_correct_extension_count(self) -> None:
+        with _patch_both(bext_health=_make_health(collector_name="browser_extensions", items_collected=7)):
+            result = runner.invoke(app, ["--yes"])
+        assert "7" in result.output
+
+    def test_ok_status_when_ran_successfully(self) -> None:
+        with _patch_both(bext_health=_make_health(collector_name="browser_extensions", ran_successfully=True)):
+            result = runner.invoke(app, ["--yes"])
+        assert "OK" in result.output
+
+    def test_failed_status_when_not_successful(self) -> None:
+        with _patch_both(bext_health=_make_health(collector_name="browser_extensions", ran_successfully=False)):
+            result = runner.invoke(app, ["--yes"])
+        assert "FAILED" in result.output
+
+    def test_skipped_status_when_skipped(self) -> None:
+        with _patch_both(
+            bext_health=_make_health(
+                collector_name="browser_extensions",
+                skipped_reason="Browser extension directories are Windows-only in this version",
+            )
+        ):
+            result = runner.invoke(app, ["--yes"])
+        assert "SKIPPED" in result.output
+        assert "Windows-only" in result.output
+
+    def test_errors_shown_when_present(self) -> None:
+        with _patch_both(
+            bext_health=_make_health(
+                collector_name="browser_extensions",
+                errors=["OSError: cannot scan extensions directory"],
+            )
+        ):
+            result = runner.invoke(app, ["--yes"])
+        assert "OSError" in result.output
+
+    def test_exit_code_zero_with_bext_collector(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert result.exit_code == 0
+
+    def test_real_collectors_do_not_crash_with_bext(self) -> None:
+        result = runner.invoke(app, ["--yes"])
+        assert result.exit_code == 0
+        assert "browser_extensions" in result.output

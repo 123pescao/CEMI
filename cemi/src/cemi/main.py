@@ -20,6 +20,7 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 
+from cemi.collectors.browser_extensions import BrowserExtensionsCollector
 from cemi.collectors.installed_apps import InstalledAppsCollector
 from cemi.collectors.native_messaging import NativeMessagingHostsCollector
 from cemi.collectors.services import ServicesCollector
@@ -158,16 +159,22 @@ def scan(
         InstalledAppsCollector(),
         ServicesCollector(),
         NativeMessagingHostsCollector(),
+        BrowserExtensionsCollector(),
     ]).run_scan()
 
     svcs_count = next(
         (h.items_collected for h in result.collector_health if h.collector_name == "services"),
         0,
     )
+    bext_count = next(
+        (h.items_collected for h in result.collector_health if h.collector_name == "browser_extensions"),
+        0,
+    )
 
     _console.print("Scan complete.")
     _console.print(f"  Installed apps found: {result.total_apps_scanned}")
     _console.print(f"  Services found: {svcs_count}")
+    _console.print(f"  Browser extensions found: {bext_count}")
     for health in result.collector_health:
         _print_collector_summary(health)
 
