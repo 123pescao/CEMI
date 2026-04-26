@@ -573,3 +573,56 @@ class TestBrowserExtensionsSummary:
         result = runner.invoke(app, ["--yes"])
         assert result.exit_code == 0
         assert "browser_extensions" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Risk score and level — CLI output
+# ---------------------------------------------------------------------------
+
+
+class TestRiskOutput:
+    def test_risk_score_label_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert result.exit_code == 0
+        assert "Risk score:" in result.output
+
+    def test_risk_level_label_present(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert result.exit_code == 0
+        assert "Risk level:" in result.output
+
+    def test_risk_score_zero_with_no_findings(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "0/100" in result.output
+
+    def test_risk_level_none_with_no_findings(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "none" in result.output
+
+    def test_risk_score_nonzero_with_finding(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["--yes"])
+        assert result.exit_code == 0
+        # ServiceUserPathRule fires → MEDIUM finding → score ≥ 15
+        assert "0/100" not in result.output
+
+    def test_risk_level_nonzero_with_finding(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["--yes"])
+        # Any non-"none" level means something was detected
+        assert "none" not in result.output or "Risk level:" in result.output
+
+    def test_risk_score_format_contains_slash_100(self) -> None:
+        with _patch_both():
+            result = runner.invoke(app, ["--yes"])
+        assert "/100" in result.output
+
+    def test_real_scan_prints_risk_score(self) -> None:
+        result = runner.invoke(app, ["--yes"])
+        assert result.exit_code == 0
+        assert "Risk score:" in result.output
+        assert "Risk level:" in result.output

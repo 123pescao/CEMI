@@ -13,6 +13,7 @@ from cemi.models import (
     EvidenceItem,
     EvidenceType,
     Finding,
+    RiskSummary,
     ScanResult,
     Severity,
 )
@@ -165,6 +166,9 @@ def test_finding_is_frozen() -> None:
 # --- ScanResult ---------------------------------------------------------------
 
 
+_EMPTY_RISK = RiskSummary(score=0, level="none", finding_counts={})
+
+
 def test_scan_result_creation() -> None:
     now = datetime.now(tz=timezone.utc)
     result = ScanResult(
@@ -177,6 +181,7 @@ def test_scan_result_creation() -> None:
         collector_health=[],
         findings=[],
         total_apps_scanned=0,
+        risk_summary=_EMPTY_RISK,
     )
     assert result.scan_id == "scan-abc"
     assert result.total_apps_scanned == 0
@@ -194,6 +199,44 @@ def test_scan_result_is_frozen() -> None:
         collector_health=[],
         findings=[],
         total_apps_scanned=0,
+        risk_summary=_EMPTY_RISK,
     )
     with pytest.raises(ValidationError):
         result.total_apps_scanned = 5  # type: ignore[misc]
+
+
+# --- RiskSummary --------------------------------------------------------------
+
+
+def test_risk_summary_creation() -> None:
+    rs = RiskSummary(score=30, level="medium", finding_counts={"HIGH": 1})
+    assert rs.score == 30
+    assert rs.level == "medium"
+    assert rs.finding_counts == {"HIGH": 1}
+
+
+def test_risk_summary_is_frozen() -> None:
+    rs = RiskSummary(score=0, level="none", finding_counts={})
+    with pytest.raises(ValidationError):
+        rs.score = 99  # type: ignore[misc]
+
+
+def test_risk_summary_forbids_extra_fields() -> None:
+    with pytest.raises(ValidationError):
+        RiskSummary(  # type: ignore[call-arg]
+            score=0,
+            level="none",
+            finding_counts={},
+            extra="bad",
+        )
+
+
+def test_risk_summary_empty_finding_counts() -> None:
+    rs = RiskSummary(score=0, level="none", finding_counts={})
+    assert rs.finding_counts == {}
+
+
+def test_risk_summary_multiple_severity_counts() -> None:
+    rs = RiskSummary(score=50, level="medium", finding_counts={"HIGH": 1, "MEDIUM": 2})
+    assert rs.finding_counts["HIGH"] == 1
+    assert rs.finding_counts["MEDIUM"] == 2

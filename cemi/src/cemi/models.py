@@ -108,6 +108,16 @@ class Finding(BaseModel):
     scan_id: str
 
 
+class RiskSummary(BaseModel):
+    """Deterministic risk score derived from the findings of one scan."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    score: int
+    level: str
+    finding_counts: dict[str, int]
+
+
 class ScanResult(BaseModel):
     """The top-level artifact produced by one run of CEMÍ."""
 
@@ -122,6 +132,7 @@ class ScanResult(BaseModel):
     collector_health: list[CollectorHealth]
     findings: list[Finding]
     total_apps_scanned: int
+    risk_summary: RiskSummary
 
 
 __all__ = [
@@ -131,6 +142,7 @@ __all__ = [
     "EvidenceType",
     "Finding",
     "PrivilegeLevel",
+    "RiskSummary",
     "ScanResult",
     "Severity",
 ]

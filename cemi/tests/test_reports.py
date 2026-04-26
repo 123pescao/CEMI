@@ -19,10 +19,12 @@ from cemi.models import (
     EvidenceItem,
     EvidenceType,
     Finding,
+    RiskSummary,
     ScanResult,
     Severity,
 )
 from cemi.reports.generator import generate_html_report, save_html_report, save_json_report
+from cemi.risk import calculate_risk_summary
 
 _FAKE_REPORT_PATH = Path("reports/cemi_report_fake.html")
 _FAKE_JSON_PATH = Path("reports/cemi_report_fake.json")
@@ -93,6 +95,7 @@ def _make_result(
     collector_health: list[CollectorHealth] | None = None,
 ) -> ScanResult:
     now = datetime.now(tz=timezone.utc)
+    resolved_findings = findings or []
     return ScanResult(
         scan_id=scan_id,
         scan_version="0.1.0",
@@ -101,17 +104,19 @@ def _make_result(
         hostname_redacted="a" * 64,
         privilege_level="user",
         collector_health=collector_health or [_make_health("installed_apps", items=5)],
-        findings=findings or [],
+        findings=resolved_findings,
         total_apps_scanned=5,
+        risk_summary=calculate_risk_summary(resolved_findings),
     )
 
 
 @contextmanager
 def _patch_all_collectors():
-    """Patch all three collectors and save_html_report for isolated CLI tests."""
+    """Patch all four collectors and report-save functions for isolated CLI tests."""
     apps_h = _make_health("installed_apps")
     svcs_h = _make_health("services")
     nmh_h = _make_health("native_messaging_hosts")
+    bext_h = _make_health("browser_extensions")
 
     def _mock(h: CollectorHealth) -> MagicMock:
         inst = MagicMock()
@@ -122,6 +127,7 @@ def _patch_all_collectors():
         patch("cemi.main.InstalledAppsCollector", return_value=_mock(apps_h)),
         patch("cemi.main.ServicesCollector", return_value=_mock(svcs_h)),
         patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock(nmh_h)),
+        patch("cemi.main.BrowserExtensionsCollector", return_value=_mock(bext_h)),
         patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
         patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
     ):
@@ -532,7 +538,7 @@ class TestSaveJsonReport:
         assert top_keys == {
             "scan_id", "scan_version", "started_at", "completed_at",
             "hostname_redacted", "privilege_level", "collector_health",
-            "findings", "total_apps_scanned",
+            "findings", "total_apps_scanned", "risk_summary",
         }
 
     def test_json_is_valid(self) -> None:
@@ -677,3 +683,67 @@ class TestCliOutputBehaviour:
             with patch("cemi.main.save_html_report") as mock_html_save:
                 runner.invoke(app, ["--output", "json", "--yes"])
         mock_html_save.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# HTML report — risk summary section
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateHtmlReportRiskSummary:
+    def test_risk_summary_section_present(self) -> None:
+        html = generate_html_report(_make_result())
+        assert "Risk Summary" in html
+
+    def test_risk_score_zero_present_for_no_findings(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "0/100" in html
+
+    def test_risk_level_none_present_for_no_findings(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "NONE" in html
+
+    def test_risk_score_shown_for_medium_finding(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.MEDIUM)])
+        html = generate_html_report(result)
+        assert "15/100" in html
+
+    def test_risk_level_low_shown_for_medium_finding(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.MEDIUM)])
+        html = generate_html_report(result)
+        assert "LOW" in html
+
+    def test_risk_score_shown_for_high_finding(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
+        html = generate_html_report(result)
+        assert "30/100" in html
+
+    def test_risk_level_medium_shown_for_high_finding(self) -> None:
+        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
+        html = generate_html_report(result)
+        assert "MEDIUM" in html
+
+    def test_finding_counts_shown_when_present(self) -> None:
+        result = _make_result(findings=[
+            _make_finding(severity=Severity.HIGH),
+            _make_finding(severity=Severity.HIGH),
+            _make_finding(severity=Severity.MEDIUM),
+        ])
+        html = generate_html_report(result)
+        assert "HIGH" in html
+        assert "MEDIUM" in html
+
+    def test_finding_counts_absent_when_no_findings(self) -> None:
+        html = generate_html_report(_make_result(findings=[]))
+        assert "Findings by Severity" not in html
+
+    def test_risk_summary_in_json_output(self) -> None:
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
+            path = save_json_report(result, Path(tmp))
+            data = json.loads(path.read_text(encoding="utf-8"))
+        assert "risk_summary" in data
+        assert data["risk_summary"]["score"] == 30
+        assert data["risk_summary"]["level"] == "medium"
+        assert data["risk_summary"]["finding_counts"] == {"HIGH": 1}

@@ -25,6 +25,7 @@ from uuid import uuid4
 from cemi.collectors.base import BaseCollector
 from cemi.config import SCAN_VERSION
 from cemi.models import CollectorHealth, Finding, PrivilegeLevel, ScanResult
+from cemi.risk import calculate_risk_summary
 from cemi.rules.browser_extension_rules import (
     ExtAllUrlsRule,
     ExtBridgeCapabilityRule,
@@ -129,6 +130,7 @@ class ScanEngine:
             collector_health=health_list,
             findings=findings,
             total_apps_scanned=total_apps_scanned,
+            risk_summary=calculate_risk_summary(findings),
         )
 
 

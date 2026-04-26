@@ -175,6 +175,8 @@ def scan(
     _console.print(f"  Installed apps found: {result.total_apps_scanned}")
     _console.print(f"  Services found: {svcs_count}")
     _console.print(f"  Browser extensions found: {bext_count}")
+    _console.print(f"  Risk score: {result.risk_summary.score}/100")
+    _console.print(f"  Risk level: {result.risk_summary.level}")
     for health in result.collector_health:
         _print_collector_summary(health)
 

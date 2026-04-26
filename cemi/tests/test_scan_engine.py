@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cemi.models import CollectorHealth, ScanResult
+from cemi.models import CollectorHealth, RiskSummary, ScanResult
 from cemi.scan_engine import ScanEngine, _effective_privilege, _hash_hostname
 
 
@@ -235,3 +235,57 @@ class TestNoExceptions:
         from cemi.collectors.installed_apps import InstalledAppsCollector
         from cemi.collectors.services import ServicesCollector
         ScanEngine([InstalledAppsCollector(), ServicesCollector()]).run_scan()
+
+
+# ---------------------------------------------------------------------------
+# risk_summary population
+# ---------------------------------------------------------------------------
+
+
+class TestRiskSummaryPopulation:
+    def test_risk_summary_present_on_result(self) -> None:
+        result = ScanEngine([]).run_scan()
+        assert isinstance(result.risk_summary, RiskSummary)
+
+    def test_risk_summary_score_zero_with_no_findings(self) -> None:
+        result = ScanEngine([]).run_scan()
+        assert result.risk_summary.score == 0
+
+    def test_risk_summary_level_none_with_no_findings(self) -> None:
+        result = ScanEngine([]).run_scan()
+        assert result.risk_summary.level == "none"
+
+    def test_risk_summary_empty_counts_with_no_findings(self) -> None:
+        result = ScanEngine([]).run_scan()
+        assert result.risk_summary.finding_counts == {}
+
+    def test_risk_summary_reflects_findings(self) -> None:
+        from unittest.mock import MagicMock
+        # ServiceUserPathRule fires on a user-path service → MEDIUM finding (score 15)
+        svc = {
+            "name": "EvilSvc",
+            "binary_path": r"C:\Users\[REDACTED]\AppData\Local\evil.exe",
+            "state": "running",
+            "start_type": "auto",
+            "username": "[REDACTED]",
+        }
+        health = CollectorHealth(
+            collector_name="services",
+            ran_successfully=True,
+            privilege_level="user",
+            items_collected=1,
+            duration_seconds=0.01,
+        )
+        col = MagicMock()
+        col.run.return_value = ([svc], health)
+        result = ScanEngine([col]).run_scan()
+        assert result.risk_summary.score > 0
+        assert result.risk_summary.level != "none"
+
+    def test_risk_summary_score_in_scan_result_serialization(self) -> None:
+        result = ScanEngine([]).run_scan()
+        data = result.model_dump()
+        assert "risk_summary" in data
+        assert "score" in data["risk_summary"]
+        assert "level" in data["risk_summary"]
+        assert "finding_counts" in data["risk_summary"]
