@@ -18,7 +18,10 @@ from rich.markup import escape
 from cemi.collectors.browser_extensions import BrowserExtensionsCollector
 from cemi.collectors.installed_apps import InstalledAppsCollector
 from cemi.collectors.native_messaging import NativeMessagingHostsCollector
+from cemi.collectors.scheduled_tasks import ScheduledTasksCollector
 from cemi.collectors.services import ServicesCollector
+from cemi.collectors.signatures import SignaturesCollector
+from cemi.collectors.startup import StartupCollector
 from cemi.config import PRIVACY_NOTICE, TOOL_NAME, TOOL_TAGLINE
 from cemi.models import CollectorHealth, Finding
 from cemi.reports import generate_html_report, save_html_report, save_json_report
@@ -145,6 +148,29 @@ _PRIVACY_GUARANTEES: list[str] = [
 ]
 
 
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    output: OutputFormat = typer.Option(
+        OutputFormat.html,
+        "--output",
+        help="Report format: html (default) or json. The report is saved locally — never uploaded.",
+    ),
+    app_filter: Optional[str] = typer.Option(
+        None,
+        "--app",
+        help="Restrict the scan to a specific application name.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        help="Skip the interactive privacy confirmation prompt.",
+    ),
+) -> None:
+    if ctx.invoked_subcommand is None:
+        scan(output=output, app_filter=app_filter, yes=yes)
+
+
 @app.command()
 def scan(
     output: OutputFormat = typer.Option(
@@ -171,6 +197,9 @@ def scan(
         ServicesCollector(),
         NativeMessagingHostsCollector(),
         BrowserExtensionsCollector(),
+        StartupCollector(),
+        ScheduledTasksCollector(),
+        SignaturesCollector(),
     ]).run_scan()
 
     svcs_count = next(
@@ -181,16 +210,37 @@ def scan(
         (h.items_collected for h in result.collector_health if h.collector_name == "browser_extensions"),
         0,
     )
+    startup_count = next(
+        (h.items_collected for h in result.collector_health if h.collector_name == "startup"),
+        0,
+    )
+    sig_count = next(
+        (h.items_collected for h in result.collector_health if h.collector_name == "signatures"),
+        0,
+    )
 
     _console.print("\n[bold]CEMÍ SCAN RESULTS[/bold]")
     _console.print("Scan complete.")
-
+    _console.print("\n[bold]Risk Summary[/bold]")
     level = result.risk_summary.level
     level_style = _RISK_LEVEL_STYLES.get(level, "white")
-    _console.print("\n[bold]Risk Summary[/bold]")
     _console.print(f"  Risk score: {result.risk_summary.score}/100")
     _console.print(f"  Risk level: [{level_style}]{level}[/{level_style}]")
     _console.print(f"  Why this matters: {_RISK_LEVEL_WHY.get(level, '')}")
+
+    _console.print("\n[bold]Possible Malware/Spyware Signals[/bold]")
+    malware_findings = [f for f in result.findings if f.category in ("Persistence",)]
+    if malware_findings:
+        _console.print(f"  {len(malware_findings)} persistence or malware-style findings detected")
+    else:
+        _console.print("  No malware/spyware signals detected")
+
+    _console.print("\n[bold]Privacy Signals[/bold]")
+    privacy_findings = [f for f in result.findings if f.category in ("Browser", "Service")]
+    if privacy_findings:
+        _console.print(f"  {len(privacy_findings)} privacy-related findings detected")
+    else:
+        _console.print("  No privacy signals detected")
 
     _console.print("\n[bold]Collectors[/bold]")
     for health in result.collector_health:
@@ -202,6 +252,9 @@ def scan(
     _console.print(f"  Installed apps found: {result.total_apps_scanned}")
     _console.print(f"  Services found: {svcs_count}")
     _console.print(f"  Browser extensions found: {bext_count}")
+    _console.print(f"  Startup entries found: {startup_count}")
+    _console.print(f"  Signatures inspected: {sig_count}")
+
     counts = result.risk_summary.finding_counts
     for sev in _SEVERITY_ORDER:
         if sev == "INFO":
@@ -211,6 +264,11 @@ def scan(
             sev_style = _SEVERITY_STYLES.get(sev, "white")
             plural = "s" if count != 1 else ""
             _console.print(f"  [{sev_style}]{count} {sev.lower()} finding{plural}[/{sev_style}]")
+
+    _console.print("\n[bold]Recommended Next Steps[/bold]")
+    _console.print("  - Review any HIGH or CRITICAL findings above")
+    _console.print("  - CEMÍ is not antivirus; use trusted security tools for verification")
+    _console.print("  - Findings are behavioral signals, not definitive malware detection")
 
     if output == OutputFormat.html:
         html = generate_html_report(result)
