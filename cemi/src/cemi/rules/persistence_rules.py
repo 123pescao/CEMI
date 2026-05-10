@@ -286,7 +286,7 @@ class PersistExtensionSpywareRule(BaseRule):
                 rule_version=_PERSIST003_VERSION,
                 title=_PERSIST003_TITLE,
                 severity=severity,
-                confidence=Confidence.HIGH,
+                confidence=Confidence.MEDIUM,
                 app=ext.get("name"),
                 category="Browser",
                 official_explanation=_PERSIST003_OFFICIAL_EXPLANATION,

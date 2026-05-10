@@ -17,6 +17,7 @@ Privacy invariants:
 from __future__ import annotations
 
 import hashlib
+import os
 import socket
 from datetime import datetime, timezone
 from typing import Any
@@ -25,16 +26,25 @@ from uuid import uuid4
 from cemi.collectors.base import BaseCollector
 from cemi.config import SCAN_VERSION
 from cemi.models import CollectorHealth, Finding, PrivilegeLevel, ScanResult
-from cemi.risk import calculate_risk_summary
+from cemi.scoring import calculate_risk_summary
 from cemi.rules.browser_extension_rules import (
     ExtAllUrlsRule,
     ExtBridgeCapabilityRule,
     ExtCookiesRule,
     ExtScriptingWebRequestRule,
 )
+from cemi.rules.correlation_rules import CorrelationSignalsRule
 from cemi.rules.engine import RuleEngine
+from cemi.rules.extension_native_correlation import CorrelatedExtensionNativeHostRule
 from cemi.rules.native_messaging_host import NativeMessagingHostRule
+from cemi.rules.network_rules import NetworkConnectionsRule
+from cemi.rules.persistence_rules import (
+    PersistUnsignedUserWritableRule,
+)
 from cemi.rules.service_user_path import ServiceUserPathRule
+from cemi.rules.startup_rules import StartupPersistenceRule
+from cemi.rules.suspicious_processes import SuspiciousProcessesRule
+from cemi.rules.trust_rules import TrustSignatureRule
 
 #: Name used by InstalledAppsCollector to identify itself in health records.
 _INSTALLED_APPS_NAME = "installed_apps"
@@ -45,10 +55,17 @@ def _build_rule_engine() -> RuleEngine:
     return RuleEngine([
         ServiceUserPathRule(),
         NativeMessagingHostRule(),
+        CorrelatedExtensionNativeHostRule(),
+        SuspiciousProcessesRule(),
+        NetworkConnectionsRule(),
+        StartupPersistenceRule(),
+        TrustSignatureRule(),
+        CorrelationSignalsRule(),
         ExtAllUrlsRule(),
         ExtCookiesRule(),
         ExtScriptingWebRequestRule(),
         ExtBridgeCapabilityRule(),
+        PersistUnsignedUserWritableRule(),
     ])
 
 
@@ -77,6 +94,91 @@ def _effective_privilege(health_list: list[CollectorHealth]) -> PrivilegeLevel:
     if "partial" in levels:
         return "partial"
     return "user"
+
+
+def _finding_priority(finding: Finding) -> tuple[int, int, int, str]:
+    severity_order = {
+        "CRITICAL": 0,
+        "HIGH": 1,
+        "MEDIUM": 2,
+        "LOW": 3,
+        "INFO": 4,
+    }
+    confidence_order = {
+        "high": 0,
+        "medium": 1,
+        "low": 2,
+    }
+    category_order = {
+        "correlation": 0,
+        "trust": 1,
+        "network": 2,
+        "persistence": 3,
+        "execution": 4,
+        "browser extension": 5,
+        "browser": 5,
+        "capability": 5,
+    }
+
+    severity_rank = severity_order.get(finding.severity.value, 5)
+    confidence_rank = confidence_order.get(finding.contextual_confidence.lower(), 1)
+    normalized_category = finding.category.strip().lower()
+    category_rank = 6
+    for key, rank in category_order.items():
+        if key == normalized_category or key in normalized_category:
+            category_rank = rank
+            break
+
+    return (severity_rank, confidence_rank, category_rank, finding.title or "")
+
+
+def _extract_executable_paths(items_by_collector: dict[str, list[Any]]) -> list[str]:
+    """Extract executable paths from collected items."""
+    paths = []
+    for collector_name, items in items_by_collector.items():
+        if collector_name in ("services", "native_messaging_hosts", "startup"):
+            for item in items:
+                if "path" in item and item["path"]:
+                    paths.append(item["path"])
+                if "command" in item and item["command"]:
+                    # Extract path from command
+                    command = item["command"]
+                    if command.startswith('"'):
+                        end = command.find('"', 1)
+                        if end > 0:
+                            paths.append(command[1:end])
+                    else:
+                        space = command.find(' ')
+                        if space > 0:
+                            paths.append(command[:space])
+                        else:
+                            paths.append(command)
+    return list(set(paths))  # deduplicate
+
+
+def _inspect_signatures(paths: list[str]) -> list[dict[str, Any]]:
+    """Inspect digital signatures for the given paths."""
+    from cemi.collectors.signatures import _check_signature, _compute_sha256, _is_executable
+    from cemi.utils.redact import redact_path
+
+    items = []
+    for path in paths:
+        exists = os.path.exists(path)
+        is_exec = _is_executable(path) if exists else False
+        sig_status, publisher = _check_signature(path) if exists and is_exec else (None, None)
+        sha256 = _compute_sha256(path) if exists and is_exec else None
+
+        items.append({
+            "source_collector": "signatures",
+            "path": path,
+            "path_redacted": redact_path(path),
+            "exists": exists,
+            "is_executable": is_exec,
+            "signature_status": sig_status,
+            "publisher": publisher,
+            "sha256": sha256,
+        })
+    return items
 
 
 class ScanEngine:
@@ -112,6 +214,7 @@ class ScanEngine:
         findings: list[Finding] = []
         try:
             findings = _build_rule_engine().evaluate(items_by_collector, scan_id)
+            findings.sort(key=_finding_priority)
         except Exception:  # noqa: BLE001 — rule failures must not kill the scan
             findings = []
 

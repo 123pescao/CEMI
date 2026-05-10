@@ -12,6 +12,7 @@ from cemi.collectors.browser_extensions import (
     BrowserExtensionsCollector,
     _candidate_dirs,
     _read_extension_manifest,
+    _resolve_localized_name,
     _scan_extensions_dir,
 )
 from cemi.models import CollectorHealth
@@ -378,6 +379,91 @@ class TestMultipleExtensions:
                 items, _ = BrowserExtensionsCollector().run()
         ids = {item["extension_id"] for item in items}
         assert ids == {"ext1", "ext2"}
+
+
+# ---------------------------------------------------------------------------
+# Localization
+# ---------------------------------------------------------------------------
+
+
+class TestLocalization:
+    def test_localized_name_resolved_from_en_locale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ext_dir = _chrome_extensions_dir(tmpdir)
+            extension_id = "localized_ext"
+            ver_dir = os.path.join(ext_dir, extension_id, "1.0_0")
+            os.makedirs(ver_dir, exist_ok=True)
+            # Create manifest with __MSG_extensionName__
+            manifest_path = os.path.join(ver_dir, "manifest.json")
+            with open(manifest_path, "w") as fh:
+                json.dump({"name": "__MSG_extensionName__", "version": "1.0"}, fh)
+            # Create _locales/en/messages.json
+            locales_dir = os.path.join(ver_dir, "_locales", "en")
+            os.makedirs(locales_dir, exist_ok=True)
+            messages_path = os.path.join(locales_dir, "messages.json")
+            with open(messages_path, "w") as fh:
+                json.dump({"extensionName": {"message": "Localized Extension Name"}}, fh)
+            with _windows_env(tmpdir):
+                items, _ = BrowserExtensionsCollector().run()
+        assert len(items) == 1
+        assert items[0]["name"] == "Localized Extension Name"
+
+    def test_fallback_to_raw_name_if_localization_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ext_dir = _chrome_extensions_dir(tmpdir)
+            _make_extension(ext_dir, manifest={"name": "__MSG_extensionName__", "version": "1.0"})
+            with _windows_env(tmpdir):
+                items, _ = BrowserExtensionsCollector().run()
+        assert len(items) == 1
+        assert items[0]["name"] == "__MSG_extensionName__"
+
+    def test_default_locale_used_first(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ext_dir = _chrome_extensions_dir(tmpdir)
+            extension_id = "default_locale_ext"
+            ver_dir = os.path.join(ext_dir, extension_id, "1.0_0")
+            os.makedirs(ver_dir, exist_ok=True)
+            # Manifest with default_locale
+            manifest_path = os.path.join(ver_dir, "manifest.json")
+            with open(manifest_path, "w") as fh:
+                json.dump({"name": "__MSG_extensionName__", "version": "1.0", "default_locale": "fr"}, fh)
+            # _locales/fr/messages.json
+            locales_dir = os.path.join(ver_dir, "_locales", "fr")
+            os.makedirs(locales_dir, exist_ok=True)
+            messages_path = os.path.join(locales_dir, "messages.json")
+            with open(messages_path, "w") as fh:
+                json.dump({"extensionName": {"message": "Nom de l'Extension"}}, fh)
+            with _windows_env(tmpdir):
+                items, _ = BrowserExtensionsCollector().run()
+        assert len(items) == 1
+        assert items[0]["name"] == "Nom de l'Extension"
+
+    def test_case_insensitive_message_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ext_dir = _chrome_extensions_dir(tmpdir)
+            extension_id = "case_insensitive_ext"
+            ver_dir = os.path.join(ext_dir, extension_id, "1.0_0")
+            os.makedirs(ver_dir, exist_ok=True)
+            manifest_path = os.path.join(ver_dir, "manifest.json")
+            with open(manifest_path, "w") as fh:
+                json.dump({"name": "__MSG_extensionname__", "version": "1.0"}, fh)  # lowercase
+            locales_dir = os.path.join(ver_dir, "_locales", "en")
+            os.makedirs(locales_dir, exist_ok=True)
+            messages_path = os.path.join(locales_dir, "messages.json")
+            with open(messages_path, "w") as fh:
+                json.dump({"extensionName": {"message": "Case Insensitive Name"}}, fh)  # mixed case
+            with _windows_env(tmpdir):
+                items, _ = BrowserExtensionsCollector().run()
+        assert len(items) == 1
+        assert items[0]["name"] == "Case Insensitive Name"
+
+    def test_failed_localization_does_not_add_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ext_dir = _chrome_extensions_dir(tmpdir)
+            _make_extension(ext_dir, manifest={"name": "__MSG_missing__", "version": "1.0"})
+            with _windows_env(tmpdir):
+                _, health = BrowserExtensionsCollector().run()
+        assert health.errors == []
 
 
 # ---------------------------------------------------------------------------

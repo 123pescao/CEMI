@@ -23,7 +23,7 @@ from cemi.collectors.services import ServicesCollector
 from cemi.collectors.signatures import SignaturesCollector
 from cemi.collectors.startup import StartupCollector
 from cemi.config import PRIVACY_NOTICE, TOOL_NAME, TOOL_TAGLINE
-from cemi.models import CollectorHealth, Finding
+from cemi.models import CollectorHealth, Finding, Severity
 from cemi.reports import generate_html_report, save_html_report, save_json_report
 from cemi.scan_engine import ScanEngine
 
@@ -84,6 +84,20 @@ _RISK_LEVEL_WHY: dict[str, str] = {
 _SEVERITY_ORDER: list[str] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
 
 
+def _finding_status(finding: Finding) -> str:
+    confidence = finding.contextual_confidence.lower()
+
+    if finding.severity == Severity.CRITICAL or (
+        confidence == "high" and finding.severity in {Severity.HIGH, Severity.CRITICAL}
+    ):
+        return "Critical Investigation"
+    if confidence == "low":
+        return "Likely Safe"
+    if confidence == "medium":
+        return "Needs Review"
+    return "High Priority"
+
+
 def _print_findings(findings: list[Finding]) -> None:
     """Print findings grouped by severity, or a clean no-findings message."""
     _console.print("\n[bold]Findings[/bold]")
@@ -104,6 +118,9 @@ def _print_findings(findings: list[Finding]) -> None:
         for f in group:
             _console.print(f"\n  [bold]{escape(f.title)}[/bold]")
             _console.print(f"    Severity: [{style}]{f.severity.value}[/{style}]")
+            _console.print(f"    Original Confidence: {f.confidence.value}")
+            _console.print(f"    Contextual Confidence: {f.contextual_confidence}")
+            _console.print(f"    Status: {_finding_status(f)}")
             if f.app:
                 _console.print(f"    App: {escape(f.app)}")
             _console.print(f"\n    [bold]Official Explanation[/bold]")
@@ -114,6 +131,9 @@ def _print_findings(findings: list[Finding]) -> None:
             _console.print(f"    {escape(f.why_this_matters)}")
             _console.print(f"\n    [bold]Recommended Action[/bold]")
             _console.print(f"    {escape(f.recommended_action)}")
+            reasoning = " ".join(f.reasoning_notes) if f.reasoning_notes else "Matched deterministic local rule evidence."
+            _console.print(f"\n    [bold]Why CEMÍ Thinks This[/bold]")
+            _console.print(f"    {escape(reasoning)}")
             n = len(f.evidence)
             _console.print(f"\n    Evidence: {n} supporting item{'s' if n != 1 else ''}")
 

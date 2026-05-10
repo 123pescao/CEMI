@@ -743,6 +743,21 @@ class TestFindingsGroupedBySeverity:
             result = runner.invoke(app, ["scan", "--yes"])
         assert "No findings detected." in result.output
 
+    def test_contextual_confidence_shown_in_finding_output(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["scan", "--yes"])
+        assert "Contextual Confidence:" in result.output
+
+    def test_status_shown_in_finding_output(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["scan", "--yes"])
+        assert "Status:" in result.output
+
+    def test_reasoning_notes_shown_in_finding_output(self) -> None:
+        with _patch_with_finding():
+            result = runner.invoke(app, ["scan", "--yes"])
+        assert "Why CEMÍ Thinks This" in result.output
+
 
 # ---------------------------------------------------------------------------
 # Summary section counts

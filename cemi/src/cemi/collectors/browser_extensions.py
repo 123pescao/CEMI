@@ -59,6 +59,61 @@ def _candidate_dirs() -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_localized_name(extension_dir: str, raw_name: str, default_locale: Optional[str], errors: list[str]) -> str:
+    """Resolve __MSG_*__ placeholders from _locales directories."""
+    if not raw_name.startswith("__MSG_") or not raw_name.endswith("__"):
+        return raw_name
+
+    # Extract the key, e.g., "extensionName" from "__MSG_extensionName__"
+    key = raw_name[6:-2]
+
+    # Try locales in order: default_locale, en, en_US, en-GB, then first available
+    locales_to_try = []
+    if default_locale:
+        locales_to_try.append(default_locale)
+    locales_to_try.extend(["en", "en_US", "en-GB"])
+    locales_dir = os.path.join(extension_dir, "_locales")
+    if os.path.isdir(locales_dir):
+        available_locales = [d for d in os.listdir(locales_dir) if os.path.isdir(os.path.join(locales_dir, d))]
+        for locale in locales_to_try:
+            if locale in available_locales:
+                messages_file = os.path.join(locales_dir, locale, "messages.json")
+                if os.path.isfile(messages_file):
+                    try:
+                        with open(messages_file, encoding="utf-8") as fh:
+                            messages = json.load(fh)
+                        # Exact match first
+                        if key in messages and "message" in messages[key]:
+                            return messages[key]["message"]
+                        # Case-insensitive fallback
+                        key_lower = key.lower()
+                        for msg_key, msg_value in messages.items():
+                            if msg_key.lower() == key_lower and "message" in msg_value:
+                                return msg_value["message"]
+                    except (json.JSONDecodeError, OSError, KeyError):
+                        pass
+        # If none of the preferred locales worked, try the first available
+        for locale in available_locales:
+            messages_file = os.path.join(locales_dir, locale, "messages.json")
+            if os.path.isfile(messages_file):
+                try:
+                    with open(messages_file, encoding="utf-8") as fh:
+                        messages = json.load(fh)
+                    # Exact match first
+                    if key in messages and "message" in messages[key]:
+                        return messages[key]["message"]
+                    # Case-insensitive fallback
+                    key_lower = key.lower()
+                    for msg_key, msg_value in messages.items():
+                        if msg_key.lower() == key_lower and "message" in msg_value:
+                            return msg_value["message"]
+                except (json.JSONDecodeError, OSError, KeyError):
+                    pass
+
+    # Fallback to raw name if localization fails
+    return raw_name
+
+
 def _read_extension_manifest(
     manifest_path: str,
     browser: str,
@@ -88,11 +143,16 @@ def _read_extension_manifest(
 
     raw_name = data.get("name")
     raw_version = data.get("version", "")
+    default_locale = data.get("default_locale")
+
+    # Resolve localized name
+    extension_dir = os.path.dirname(manifest_path)  # Version directory
+    resolved_name = _resolve_localized_name(extension_dir, str(raw_name) if isinstance(raw_name, str) else "", default_locale, errors)
 
     return {
         "browser": browser,
         "extension_id": extension_id,
-        "name": str(raw_name) if isinstance(raw_name, str) else None,
+        "name": resolved_name if resolved_name else None,
         "version": str(raw_version) if raw_version else "",
         "manifest_path": redacted_mp,
         "permissions": permissions,

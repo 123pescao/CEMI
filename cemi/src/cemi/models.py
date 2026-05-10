@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -94,6 +94,8 @@ class Finding(BaseModel):
     title: str
     severity: Severity
     confidence: Confidence
+    contextual_confidence: str = "medium"
+    reasoning_notes: list[str] = Field(default_factory=list)
     app: Optional[str] = None
     category: str
     official_explanation: str
@@ -106,6 +108,12 @@ class Finding(BaseModel):
     requires_admin_to_verify: bool
     created_at: datetime
     scan_id: str
+
+    def model_post_init(self, __context: Any) -> None:
+        if "contextual_confidence" not in self.__pydantic_fields_set__:
+            object.__setattr__(self, "contextual_confidence", self.confidence.value.lower())
+        if "reasoning_notes" not in self.__pydantic_fields_set__:
+            object.__setattr__(self, "reasoning_notes", [])
 
 
 class RiskSummary(BaseModel):
