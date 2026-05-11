@@ -73,6 +73,6 @@ venv.bak/
 Thumbs.db
 
 # Local outputs / scan artifacts (never commit these)
-reports/
+/reports/
 *.cemi.json
 *.cemi.html

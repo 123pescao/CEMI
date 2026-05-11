@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEMÍ Security Dashboard - {{ result.scan_id }}</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f4f6f8;
+            color: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f4f6f8;
+        }
+
+        .page-shell {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .dashboard-header {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 20px;
+            padding: 30px;
+            background: linear-gradient(135deg, #4054b2 0%, #4f46e5 100%);
+            border-radius: 24px;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .dashboard-header h1 {
+            margin: 0 0 12px;
+            font-size: clamp(2rem, 3vw, 2.8rem);
+            letter-spacing: -0.03em;
+        }
+
+        .dashboard-header .eyebrow {
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            font-size: 0.8rem;
+            opacity: 0.85;
+            margin: 0 0 16px;
+        }
+
+        .dashboard-header p {
+            margin: 0;
+            line-height: 1.6;
+            max-width: 42rem;
+        }
+
+        .header-meta {
+            display: grid;
+            gap: 12px;
+            align-content: end;
+            justify-items: end;
+        }
+
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .meta-chip,
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.65rem 1rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .badge.risk {
+            background: white;
+            color: #1f2937;
+            font-weight: 700;
+        }
+
+        .badge.risk.level-none { background: #d1fae5; color: #047857; }
+        .badge.risk.level-low { background: #dbeafe; color: #1d4ed8; }
+        .badge.risk.level-medium { background: #fee2e2; color: #b91c1c; }
+        .badge.risk.level-high { background: #fef3c7; color: #92400e; }
+        .badge.risk.level-critical { background: #fee2e2; color: #991b1b; }
+
+        .cards,
+        .finding-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: white;
+            padding: 22px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+            border: 1px solid #e5e7eb;
+        }
+
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 14px;
+            font-size: 1rem;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .metric {
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1;
+            color: #0f172a;
+        }
+
+        .metric-secondary {
+            font-size: 0.95rem;
+            color: #6b7280;
+            margin-top: 8px;
+        }
+
+        .section {
+            background: white;
+            padding: 28px;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
+            margin-bottom: 30px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .section h2 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 1.4rem;
+            color: #111827;
+        }
+
+        .section p,
+        .section li {
+            margin: 0 0 12px;
+            color: #4b5563;
+            line-height: 1.7;
+        }
+
+        .section ul {
+            padding-left: 22px;
+            margin: 0;
+        }
+
+        .finding-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            padding: 22px;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .finding-card h3 {
+            margin: 0;
+            font-size: 1.15rem;
+            color: #111827;
+        }
+
+        .finding-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            font-size: 0.95rem;
+            color: #4b5563;
+        }
+
+        .finding-meta span {
+            display: block;
+            line-height: 1.55;
+        }
+
+        .finding-meta strong,
+        .finding-copy strong {
+            color: #111827;
+            font-weight: 600;
+        }
+
+        .finding-copy {
+            display: grid;
+            gap: 10px;
+            font-size: 0.95rem;
+            color: #374151;
+        }
+
+        .evidence-count {
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .privacy-promise-list {
+            columns: 2;
+            gap: 16px;
+            list-style: disc;
+            padding-left: 20px;
+        }
+
+        .monitoring-card {
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            border-radius: 18px;
+            color: #0f172a;
+        }
+
+        .monitoring-card code {
+            display: block;
+            margin-top: 8px;
+            padding: 12px;
+            background: #e2e8f0;
+            border-radius: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        }
+
+        .disclaimer {
+            background: #f8fafc;
+            border: 1px solid #d1d5db;
+        }
+
+        .disclaimer strong {
+            color: #111827;
+        }
+
+        @media (max-width: 840px) {
+            .dashboard-header {
+                grid-template-columns: 1fr;
+                text-align: left;
+            }
+
+            .header-meta {
+                justify-items: start;
+            }
+
+            .privacy-promise-list {
+                columns: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-shell">
+        <header class="dashboard-header">
+            <div>
+                <p class="eyebrow">CEMÍ Security Dashboard</p>
+                <h1>Local security signal review</h1>
+                <p>This report summarizes a privacy-first local scan of the system. No telemetry is sent, and all analysis stays on this device. All results are generated locally.</p>
+            </div>
+            <div class="header-meta">
+                <div class="meta-row">
+                    <span class="meta-chip">Scan date: {{ result.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                    <span class="meta-chip">Version: {{ result.scan_version }}</span>
+                </div>
+                <div class="meta-row">
+                    <span class="meta-chip">Privilege: {{ result.privilege_level }}</span>
+                    <span class="badge privacy">Local Only</span>
+                    <span class="badge risk level-{{ result.risk_summary.level | lower }}">Risk {{ result.risk_summary.level.upper() }}</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="risk-banner risk-banner-{{ result.risk_summary.level }}">
+            <h2>Risk Summary</h2>
+            <p><strong>Why This Matters:</strong> {{ _RISK_LEVEL_WHY.get(result.risk_summary.level, '') }}</p>
+        </section>
+
+        <section class="cards">
+            <article class="card">
+                <h3>Risk Score</h3>
+                <div class="metric">{{ result.risk_summary.score }}/100</div>
+                <p class="metric-secondary">Higher scores indicate greater signal density.</p>
+            </article>
+            <article class="card">
+                <h3>Risk Level</h3>
+                <div class="metric">{{ result.risk_summary.level.upper() }}</div>
+                <p class="metric-secondary">Risk level is derived from findings and confidence.</p>
+            </article>
+            <article class="card">
+                <h3>Findings Count</h3>
+                <div class="metric">{{ result.findings | length }}</div>
+                <p class="metric-secondary">Total signals identified by collectors and rules.</p>
+            </article>
+            <article class="card">
+                <h3>Collectors Healthy</h3>
+                <div class="metric">{{ result.collector_health | selectattr('ran_successfully') | list | length }}</div>
+                <p class="metric-secondary">Collectors that completed without failure.</p>
+            </article>
+            <article class="card">
+                <h3>Privacy Mode</h3>
+                <div class="metric">Local Only</div>
+                <p class="metric-secondary">No uploads, no cloud processing, no telemetry.</p>
+            </article>
+        </section>
+
+        <section class="section">
+            <h2>Executive Summary</h2>
+            {% set total_findings = result.findings | length %}
+            {% set high_priority_findings = result.findings | selectattr('severity', 'in', ['CRITICAL', 'HIGH']) | list | length %}
+            <p>Overall risk is <strong>{{ result.risk_summary.level.upper() }}</strong> with <strong>{{ total_findings }}</strong> finding{% if total_findings != 1 %}s{% endif %}, including <strong>{{ high_priority_findings }}</strong> high-priority item{% if high_priority_findings != 1 %}s{% endif %}.</p>
+            {% if total_findings > 0 %}
+                <p>Focus on the highest-severity findings first, review the recommended actions, and use trusted tools to confirm any remediation steps.</p>
+            {% else %}
+                <p>No findings were detected in this scan. Maintain good system hygiene and run scans regularly to keep visibility up to date.</p>
+            {% endif %}
+        </section>
+
+        <section class="section monitoring-card">
+            <h2>Monitoring & Timeline</h2>
+            <p>Track changes over time by storing local scan snapshots. History is kept in <code>.cemi/history/</code> and can be reviewed with the history command.</p>
+            <code>cemi monitor --yes --interval 60 --iterations 5</code>
+            <code>cemi history</code>
+        </section>
+
+        <section class="section">
+            <h2>Correlated Threat Signals</h2>
+            {% if result.correlated_signals %}
+                <div class="finding-grid">
+                    {% for signal in result.correlated_signals %}
+                        <article class="finding-card">
+                            <h3>{{ signal.title }}</h3>
+                            <div class="finding-meta">
+                                <span><strong>Status:</strong> {{ signal.status }}</span>
+                                <span><strong>Contextual Confidence:</strong> {{ signal.contextual_confidence }}</span>
+                                <span><strong>Severity:</strong> {{ signal.severity }}</span>
+                            </div>
+                            <div class="finding-copy">
+                                <p><strong>Why CEMÍ correlated this:</strong></p>
+                                <ul>
+                                    {% for item in signal.contributing_findings %}
+                                        <li>{{ item }}</li>
+                                    {% endfor %}
+                                </ul>
+                                <p><strong>Reasoning notes:</strong> {{ signal.reasoning_notes | join(' ') }}</p>
+                                <p><strong>Recommended action:</strong> {{ signal.recommended_action }}</p>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>No correlated threat signals were identified in this scan.</p>
+            {% endif %}
+        </section>
+
+        <section class="section">
+            <h2>Findings</h2>
+            {% if result.findings %}
+                {% set findings_by_severity = {} %}
+                {% for finding in result.findings %}
+                    {% set sev = findings_by_severity[finding.severity] | default([]) %}
+                    {% set _ = sev.append(finding) %}
+                    {% set _ = findings_by_severity.update({finding.severity: sev}) %}
+                {% endfor %}
+                {% set summary_items = [] %}
+                {% for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] %}
+                    {% set count = findings_by_severity.get(severity, []) | length %}
+                    {% if count %}
+                        {% set _ = summary_items.append(severity ~ ': ' ~ count) %}
+                    {% endif %}
+                {% endfor %}
+                <p class="findings-summary">Summary: {{ summary_items | join(', ') }}</p>
+                <div class="finding-grid">
+                    {% for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] %}
+                        {% set group = findings_by_severity.get(severity, []) %}
+                        {% if group %}
+                            <section class="severity-group severity-group-{{ severity }}">
+                                <h3 class="severity-group-header">{{ severity }} ({{ group|length }})</h3>
+                                {% for finding in group %}
+                                    <article class="finding-card">
+                                        <h3>{{ finding.title }}</h3>
+                                        <div class="finding-meta">
+                                            <span><strong>Severity:</strong> {{ finding.severity }}</span>
+                                            <span><strong>Status:</strong> {{ _finding_status(finding) }}</span>
+                                            <span><strong>Contextual Confidence:</strong> {{ finding.contextual_confidence }}</span>
+                                            <span><strong>Category:</strong> {{ finding.category }}</span>
+                                            {% if finding.app %}<span><strong>App:</strong> {{ finding.app }}</span>{% endif %}
+                                        </div>
+                                        <div class="finding-copy">
+                                            <p><strong>Official explanation:</strong> {{ finding.official_explanation }}</p>
+                                            <p><strong>In other words:</strong> {{ finding.in_other_words }}</p>
+                                            <p><strong>Why CEMÍ thinks this:</strong> {{ finding.why_this_matters }}</p>
+                                            <p><strong>Recommended action:</strong> {{ finding.recommended_action }}</p>
+                                            {% if finding.reasoning_notes %}
+                                                <p><strong>Reasoning notes:</strong> {{ finding.reasoning_notes | join(' ') }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <p class="evidence-count">Evidence count: {{ finding.evidence | length }} supporting item{% if finding.evidence | length != 1 %}s{% endif %}</p>
+                                    </article>
+                                {% endfor %}
+                            </section>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>No findings detected. Your system appears clean based on the checks performed.</p>
+            {% endif %}
+        </section>
+
+        <section class="section">
+            <h2>Collector Coverage</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Collector</th>
+                        <th>Status</th>
+                        <th>Items Collected</th>
+                        <th>Skipped Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for health in result.collector_health %}
+                    <tr>
+                        <td>{{ health.collector_name }}</td>
+                        <td class="status-{{ 'ok' if health.ran_successfully and not health.skipped_reason else 'failed' if not health.ran_successfully else 'skipped' }}">
+                            {% if health.skipped_reason %}
+                                SKIPPED
+                            {% elif health.ran_successfully %}
+                                OK
+                            {% else %}
+                                FAILED
+                            {% endif %}
+                        </td>
+                        <td>{{ health.items_collected }}</td>
+                        <td>{{ health.skipped_reason or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section">
+            <h2>Privacy Promise</h2>
+            <p><strong>Review before sharing:</strong> This report contains system metadata that could be sensitive. Always review before sharing with others.</p>
+            <ul class="privacy-promise-list">
+                <li>No telemetry is collected.</li>
+                <li>No data is uploaded off this device.</li>
+                <li>No browser history is read.</li>
+                <li>No cookies are scanned.</li>
+                <li>No document or file content is analyzed.</li>
+                <li>Reports are generated and stored locally.</li>
+            </ul>
+        </section>
+
+        <section class="section disclaimer">
+            <h2>Disclaimer</h2>
+            <p><strong>CEMÍ is not antivirus software.</strong> This tool detects behavioral patterns and capabilities that could indicate security risks, but does not prove the presence or absence of malware.</p>
+            <p>Findings are signals, not proof. Use trusted security tools and consult professionals for comprehensive security analysis.</p>
+        </section>
+    </div>
+</body>
+</html>
