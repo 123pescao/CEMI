@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import json
+import tempfile
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -828,6 +831,41 @@ class TestScanSubcommand:
         with _patch_both():
             result = runner.invoke(app, ["scan", "--output", "json", "--yes"])
         assert result.exit_code == 0
+
+
+class TestHistoryCommand:
+    def test_history_shows_no_history_message(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("pathlib.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["history"])
+
+        assert result.exit_code == 0
+        assert "No monitor history found" in result.output
+        assert "cemi monitor" in result.output
+
+    def test_history_shows_summary_for_existing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = Path(tmpdir) / ".cemi" / "history"
+            history_dir.mkdir(parents=True, exist_ok=True)
+            snapshot = {
+                "snapshot_id": "snap-1",
+                "scan_id": "scan-1",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "risk_score": 18,
+                "risk_level": "medium",
+                "finding_titles": ["Test Finding"],
+                "finding_ids": ["TST-001"],
+                "collector_statuses": {"installed_apps": True},
+            }
+            with open(history_dir / "snapshot_001.json", "w", encoding="utf-8") as fh:
+                json.dump(snapshot, fh)
+            with patch("pathlib.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["history"])
+
+        assert result.exit_code == 0
+        assert "Snapshots: 1" in result.output
+        assert "Latest risk score: 18/100" in result.output
+        assert "Active findings: 1" in result.output
 
 
 # ---------------------------------------------------------------------------

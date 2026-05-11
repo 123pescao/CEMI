@@ -29,6 +29,7 @@ from cemi.models import CollectorHealth, Finding, Severity
 from cemi.monitor import compute_diff, create_snapshot, get_latest_snapshot, save_snapshot
 from cemi.reports import generate_html_report, save_html_report, save_json_report
 from cemi.scan_engine import ScanEngine
+from cemi.timeline import get_timeline_summary, load_history
 
 app = typer.Typer(
     name="cemi",
@@ -426,6 +427,36 @@ def monitor(
 
     except KeyboardInterrupt:
         _console.print("\n\nMonitoring interrupted by user.")
+
+
+@app.command()
+def history(
+    history_dir: Optional[Path] = typer.Option(
+        None,
+        "--history-dir",
+        help="Path to monitor history directory. Defaults to .cemi/history relative to the current working directory.",
+    ),
+) -> None:
+    """Show a local timeline summary for previously saved monitor snapshots."""
+    snapshots = load_history(history_dir)
+    if not snapshots:
+        _console.print("[bold]CEMÍ HISTORY SUMMARY[/bold]")
+        _console.print("No monitor history found.")
+        _console.print("Run: cemi monitor --yes --interval 60 --iterations 5")
+        return
+
+    summary = get_timeline_summary(snapshots)
+    _console.print("[bold]CEMÍ HISTORY SUMMARY[/bold]")
+    _console.print(f"Snapshots: {summary.total_snapshots}")
+    _console.print(f"First seen: {summary.first_seen_at.isoformat(sep=' ')}")
+    _console.print(f"Latest snapshot: {summary.last_seen_at.isoformat(sep=' ')}")
+    _console.print(f"Latest risk score: {summary.latest_risk_score}/100")
+    _console.print(f"Latest risk level: {summary.latest_risk_level}")
+    _console.print(f"Highest observed risk score: {summary.highest_risk_score}/100")
+    _console.print(f"Risk score change: {summary.risk_score_delta:+d}")
+    _console.print(f"Active findings: {len(summary.active_findings)}")
+    _console.print(f"New findings since first scan: {len(summary.new_findings_since_first)}")
+    _console.print(f"Resolved findings since first scan: {len(summary.resolved_findings_since_first)}")
 
 
 @app.command()

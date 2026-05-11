@@ -184,7 +184,9 @@ class TestGenerateHtmlReportStructure:
 
     def test_contains_monitoring_mode_available_section(self) -> None:
         html = generate_html_report(_make_result())
-        assert "Monitoring mode available" in html
+        assert "Monitoring & Timeline" in html
+        assert "cemi monitor --yes --interval 60 --iterations 5" in html
+        assert "cemi history" in html
 
 
 # ---------------------------------------------------------------------------
