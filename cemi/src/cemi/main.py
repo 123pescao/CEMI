@@ -12,7 +12,6 @@ import time
 from enum import Enum
 from pathlib import Path
 from typing import Optional
-
 import typer
 from rich.console import Console
 from rich.markup import escape
@@ -20,6 +19,8 @@ from rich.markup import escape
 from cemi.collectors.browser_extensions import BrowserExtensionsCollector
 from cemi.collectors.installed_apps import InstalledAppsCollector
 from cemi.collectors.native_messaging import NativeMessagingHostsCollector
+from cemi.collectors.network_connections import NetworkConnectionsCollector
+from cemi.collectors.processes import ProcessesCollector
 from cemi.collectors.scheduled_tasks import ScheduledTasksCollector
 from cemi.collectors.services import ServicesCollector
 from cemi.collectors.signatures import SignaturesCollector
@@ -201,11 +202,6 @@ def main(
         "--output",
         help="Report format: html (default) or json. The report is saved locally — never uploaded.",
     ),
-    app_filter: Optional[str] = typer.Option(
-        None,
-        "--app",
-        help="Restrict the scan to a specific application name.",
-    ),
     yes: bool = typer.Option(
         False,
         "--yes",
@@ -213,7 +209,7 @@ def main(
     ),
 ) -> None:
     if ctx.invoked_subcommand is None:
-        scan(output=output, app_filter=app_filter, yes=yes)
+        scan(output=output, yes=yes)
 
 
 @app.command()
@@ -222,11 +218,6 @@ def scan(
         OutputFormat.html,
         "--output",
         help="Report format: html (default) or json. The report is saved locally — never uploaded.",
-    ),
-    app_filter: Optional[str] = typer.Option(
-        None,
-        "--app",
-        help="Restrict the scan to a specific application name.",
     ),
     yes: bool = typer.Option(
         False,
@@ -244,6 +235,8 @@ def scan(
         BrowserExtensionsCollector(),
         StartupCollector(),
         ScheduledTasksCollector(),
+        ProcessesCollector(),
+        NetworkConnectionsCollector(),
         SignaturesCollector(),
     ]).run_scan()
 
@@ -366,6 +359,8 @@ def monitor(
         BrowserExtensionsCollector(),
         StartupCollector(),
         ScheduledTasksCollector(),
+        ProcessesCollector(),
+        NetworkConnectionsCollector(),
         SignaturesCollector(),
     ])
 

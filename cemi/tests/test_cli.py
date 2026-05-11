@@ -69,8 +69,13 @@ def _patch_both(
     svcs_health: CollectorHealth | None = None,
     nmh_health: CollectorHealth | None = None,
     bext_health: CollectorHealth | None = None,
+    startup_health: CollectorHealth | None = None,
+    scheduled_health: CollectorHealth | None = None,
+    processes_health: CollectorHealth | None = None,
+    network_health: CollectorHealth | None = None,
+    signatures_health: CollectorHealth | None = None,
 ):
-    """Patch all four collectors simultaneously for clean, isolated CLI tests."""
+    """Patch all collectors simultaneously for clean, isolated CLI tests."""
     if apps_health is None:
         apps_health = _make_health(collector_name="installed_apps")
     if svcs_health is None:
@@ -79,12 +84,27 @@ def _patch_both(
         nmh_health = _make_health(collector_name="native_messaging_hosts")
     if bext_health is None:
         bext_health = _make_health(collector_name="browser_extensions")
+    if startup_health is None:
+        startup_health = _make_health(collector_name="startup")
+    if scheduled_health is None:
+        scheduled_health = _make_health(collector_name="scheduled_tasks")
+    if processes_health is None:
+        processes_health = _make_health(collector_name="processes", skipped_reason="Processes collection is Windows-only in this version")
+    if network_health is None:
+        network_health = _make_health(collector_name="network_connections")
+    if signatures_health is None:
+        signatures_health = _make_health(collector_name="signatures", skipped_reason="Signature verification not available on non-Windows platforms")
 
     with (
         patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
         patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health)),
         patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
         patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health)),
+        patch("cemi.main.StartupCollector", return_value=_mock_run(startup_health)),
+        patch("cemi.main.ScheduledTasksCollector", return_value=_mock_run(scheduled_health)),
+        patch("cemi.main.ProcessesCollector", return_value=_mock_run(processes_health)),
+        patch("cemi.main.NetworkConnectionsCollector", return_value=_mock_run(network_health)),
+        patch("cemi.main.SignaturesCollector", return_value=_mock_run(signatures_health)),
         patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
         patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
     ):
@@ -621,8 +641,15 @@ class TestRiskOutput:
         with _patch_with_finding():
             result = runner.invoke(app, ["scan", "--yes"])
         assert result.exit_code == 0
-        # ServiceUserPathRule fires → MEDIUM finding → score ≥ 15
-        assert "0/100" not in result.output
+        # ServiceUserPathRule fires → MEDIUM finding → score ≥ 15.
+        # Avoid substring checks like `"0/100" not in output`
+        # because scores like `40/100` contain `0/100`.
+        risk_line = next(
+            line for line in result.output.splitlines()
+            if "Risk score:" in line
+        )
+        score_text = risk_line.split("Risk score:", 1)[1].split("/100", 1)[0]
+        assert int(score_text.strip()) >= 15
 
     def test_risk_level_nonzero_with_finding(self) -> None:
         with _patch_with_finding():

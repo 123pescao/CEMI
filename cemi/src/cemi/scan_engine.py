@@ -141,55 +141,6 @@ def _finding_priority(finding: Finding) -> tuple[int, int, int, str]:
     return (severity_rank, confidence_rank, category_rank, finding.title or "")
 
 
-def _extract_executable_paths(items_by_collector: dict[str, list[Any]]) -> list[str]:
-    """Extract executable paths from collected items."""
-    paths = []
-    for collector_name, items in items_by_collector.items():
-        if collector_name in ("services", "native_messaging_hosts", "startup"):
-            for item in items:
-                if "path" in item and item["path"]:
-                    paths.append(item["path"])
-                if "command" in item and item["command"]:
-                    # Extract path from command
-                    command = item["command"]
-                    if command.startswith('"'):
-                        end = command.find('"', 1)
-                        if end > 0:
-                            paths.append(command[1:end])
-                    else:
-                        space = command.find(' ')
-                        if space > 0:
-                            paths.append(command[:space])
-                        else:
-                            paths.append(command)
-    return list(set(paths))  # deduplicate
-
-
-def _inspect_signatures(paths: list[str]) -> list[dict[str, Any]]:
-    """Inspect digital signatures for the given paths."""
-    from cemi.collectors.signatures import _check_signature, _compute_sha256, _is_executable
-    from cemi.utils.redact import redact_path
-
-    items = []
-    for path in paths:
-        exists = os.path.exists(path)
-        is_exec = _is_executable(path) if exists else False
-        sig_status, publisher = _check_signature(path) if exists and is_exec else (None, None)
-        sha256 = _compute_sha256(path) if exists and is_exec else None
-
-        items.append({
-            "source_collector": "signatures",
-            "path": path,
-            "path_redacted": redact_path(path),
-            "exists": exists,
-            "is_executable": is_exec,
-            "signature_status": sig_status,
-            "publisher": publisher,
-            "sha256": sha256,
-        })
-    return items
-
-
 class ScanEngine:
     """Orchestrate a CEMÍ scan: run collectors, evaluate rules, produce ScanResult."""
 

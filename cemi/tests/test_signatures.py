@@ -29,7 +29,8 @@ class TestSignaturesCollector:
         assert health.collector_name == "signatures"
         assert health.ran_successfully is True
         assert health.items_collected == 0
-        assert "non-Windows" in health.skipped_reason
+        assert health.skipped_reason is not None
+        assert "safe raw-path isolation" in health.skipped_reason
 
     @pytest.mark.skipif(platform.system() != "Windows", reason="Windows only")
     def test_collect_windows(self) -> None:
@@ -37,6 +38,9 @@ class TestSignaturesCollector:
         items, health = collector.collect()
 
         assert isinstance(items, list)
+        assert items == []
         assert health.collector_name == "signatures"
         assert health.ran_successfully is True
-        # Items collected may be 0 since no paths are provided
+        assert health.items_collected == 0
+        assert health.skipped_reason is not None
+        # Signature collection is deferred; verify it's skipped
