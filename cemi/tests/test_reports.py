@@ -58,6 +58,7 @@ def _make_finding(
     severity: Severity = Severity.MEDIUM,
     app: str | None = "TestApp",
     evidence_count: int = 1,
+    reasoning_notes: list[str] | None = None,
 ) -> Finding:
     evidence = [
         EvidenceItem(
@@ -74,6 +75,8 @@ def _make_finding(
         title=title,
         severity=severity,
         confidence=Confidence.MEDIUM,
+        contextual_confidence="medium",
+        reasoning_notes=reasoning_notes or [],
         app=app,
         category="Test",
         official_explanation="Official explanation of the test finding.",
@@ -162,6 +165,26 @@ class TestGenerateHtmlReportStructure:
         html = generate_html_report(_make_result())
         assert "generated locally" in html
         assert "Review before sharing" in html
+
+    def test_contains_dashboard_header(self) -> None:
+        html = generate_html_report(_make_result())
+        assert "CEMÍ Security Dashboard" in html
+        assert "Local Only" in html
+
+    def test_contains_executive_summary(self) -> None:
+        html = generate_html_report(_make_result())
+        assert "Executive Summary" in html
+        assert "Overall risk" in html
+
+    def test_contains_risk_cards(self) -> None:
+        html = generate_html_report(_make_result())
+        assert "Risk Score" in html
+        assert "Findings Count" in html
+        assert "Collectors Healthy" in html
+
+    def test_contains_monitoring_mode_available_section(self) -> None:
+        html = generate_html_report(_make_result())
+        assert "Monitoring mode available" in html
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +288,33 @@ class TestGenerateHtmlReportFindings:
         html = generate_html_report(result)
         assert "Recommended action for the test finding" in html
 
+    def test_finding_card_shows_status(self) -> None:
+        result = _make_result(findings=[_make_finding()])
+        html = generate_html_report(result)
+        assert "Status:" in html
+        assert "Needs Review" in html
+
+    def test_finding_card_shows_contextual_confidence(self) -> None:
+        result = _make_result(findings=[_make_finding()])
+        html = generate_html_report(result)
+        assert "Contextual Confidence:" in html
+        assert "medium" in html
+
+    def test_finding_card_shows_reasoning_notes(self) -> None:
+        finding = _make_finding(reasoning_notes=["Matched local startup evidence."])
+        result = _make_result(findings=[finding])
+        html = generate_html_report(result)
+        assert "Reasoning notes:" in html
+        assert "Matched local startup evidence." in html
+
+    def test_finding_card_does_not_include_raw_evidence_values(self) -> None:
+        finding = _make_finding(evidence_count=2)
+        result = _make_result(findings=[finding])
+        html = generate_html_report(result)
+        assert r"C:\\Users\\" not in html
+        assert "binary path" not in html
+        assert "Evidence count:" in html
+
     def test_report_includes_severity(self) -> None:
         result = _make_result(findings=[_make_finding(severity=Severity.HIGH)])
         html = generate_html_report(result)
@@ -312,6 +362,19 @@ class TestGenerateHtmlReportPrivacy:
         # The label "binary path" is on the EvidenceItem but the template
         # never iterates evidence items, so it should not appear.
         assert "binary path" not in html
+
+    def test_report_contains_privacy_promise(self) -> None:
+        result = _make_result()
+        html = generate_html_report(result)
+        assert "Privacy Promise" in html
+        assert "No telemetry is collected" in html
+
+    def test_report_has_no_external_assets_or_cdn(self) -> None:
+        result = _make_result()
+        html = generate_html_report(result).lower()
+        assert "https://" not in html
+        assert "http://" not in html
+        assert "cdn" not in html
 
     def test_no_javascript_in_report(self) -> None:
         result = _make_result(findings=[_make_finding()])
