@@ -46,6 +46,11 @@ from cemi.rules.service_user_path import ServiceUserPathRule
 from cemi.rules.startup_rules import StartupPersistenceRule
 from cemi.rules.suspicious_processes import SuspiciousProcessesRule
 from cemi.rules.trust_rules import TrustSignatureRule
+from cemi.rules.windows_persistence_rules import (
+    LolbinStartupTaskRule,
+    RunOncePersistenceRule,
+    SuspiciousPowerShellStartupRule,
+)
 
 #: Name used by InstalledAppsCollector to identify itself in health records.
 _INSTALLED_APPS_NAME = "installed_apps"
@@ -55,6 +60,9 @@ def _build_rule_engine() -> RuleEngine:
     """Return a RuleEngine loaded with all active rules."""
     return RuleEngine([
         ServiceUserPathRule(),
+        RunOncePersistenceRule(),
+        SuspiciousPowerShellStartupRule(),
+        LolbinStartupTaskRule(),
         NativeMessagingHostRule(),
         CorrelatedExtensionNativeHostRule(),
         SuspiciousProcessesRule(),

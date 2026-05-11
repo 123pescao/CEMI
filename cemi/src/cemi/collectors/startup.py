@@ -22,11 +22,23 @@ except ImportError:
     _WINREG_AVAILABLE = False
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+_RUNONCE_KEY = r"Software\Microsoft\Windows\CurrentVersion\RunOnce"
+_STARTUP_APPROVED_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
 
 
 def _redact_cmd(cmd: str) -> str:
     """Redact paths in command strings."""
     return redact_path(cmd)
+
+
+def _parse_startup_approved_status(value: Any) -> str:
+    if isinstance(value, (bytes, bytearray)) and len(value) >= 1:
+        first = value[0]
+        if first == 2:
+            return "enabled"
+        if first == 3:
+            return "disabled"
+    return "unknown"
 
 
 class StartupCollector(BaseCollector):
@@ -76,23 +88,46 @@ class StartupCollector(BaseCollector):
 
     def _collect_from_registry(self, entries: list[dict[str, Any]], errors: list[str]) -> None:
         """Collect startup entries from registry."""
-        hives = [
-            (_winreg.HKEY_CURRENT_USER, _RUN_KEY, "user"),
-            (_winreg.HKEY_LOCAL_MACHINE, _RUN_KEY, "system"),
+        run_keys = [
+            (_winreg.HKEY_CURRENT_USER, _RUN_KEY, "user", "registry_run"),
+            (_winreg.HKEY_LOCAL_MACHINE, _RUN_KEY, "system", "registry_run"),
+            (_winreg.HKEY_CURRENT_USER, _RUNONCE_KEY, "user", "registry_runonce"),
+            (_winreg.HKEY_LOCAL_MACHINE, _RUNONCE_KEY, "system", "registry_runonce"),
         ]
 
-        for hive, subkey, scope in hives:
+        for hive, subkey, scope, source in run_keys:
             try:
                 with _winreg.OpenKey(hive, subkey) as key:
-                    self._read_run_key(key, scope, entries)
+                    self._read_run_key(key, scope, source, entries)
             except OSError as exc:
                 if scope == "system":
                     errors.append(f"Cannot access system registry: {exc}")
                 else:
                     errors.append(f"Cannot access user registry: {exc}")
 
-    def _read_run_key(self, key: Any, scope: str, entries: list[dict[str, Any]]) -> None:
-        """Read values from a Run key."""
+        approved_keys = [
+            (_winreg.HKEY_CURRENT_USER, _STARTUP_APPROVED_RUN_KEY, "user"),
+            (_winreg.HKEY_LOCAL_MACHINE, _STARTUP_APPROVED_RUN_KEY, "system"),
+        ]
+
+        for hive, subkey, scope in approved_keys:
+            try:
+                with _winreg.OpenKey(hive, subkey) as key:
+                    self._read_startup_approved_key(key, scope, entries)
+            except OSError as exc:
+                if scope == "system":
+                    errors.append(f"Cannot access system registry: {exc}")
+                else:
+                    errors.append(f"Cannot access user registry: {exc}")
+
+    def _read_run_key(
+        self,
+        key: Any,
+        scope: str,
+        source: str,
+        entries: list[dict[str, Any]],
+    ) -> None:
+        """Read values from a Run or RunOnce key."""
         idx = 0
         while True:
             try:
@@ -100,7 +135,7 @@ class StartupCollector(BaseCollector):
                 path_redacted = _extract_path_from_command(command)
                 entries.append({
                     "name": name,
-                    "source": "registry",
+                    "source": source,
                     "command": _redact_cmd(command),
                     "path_redacted": path_redacted,
                     "scope": scope,
@@ -109,10 +144,30 @@ class StartupCollector(BaseCollector):
             except OSError:
                 break
 
+    def _read_startup_approved_key(
+        self,
+        key: Any,
+        scope: str,
+        entries: list[dict[str, Any]],
+    ) -> None:
+        """Read StartupApproved metadata values."""
+        idx = 0
+        while True:
+            try:
+                name, value, _ = _winreg.EnumValue(key, idx)
+                status = _parse_startup_approved_status(value)
+                entries.append({
+                    "name": name,
+                    "source": "startup_approved_run",
+                    "scope": scope,
+                    "status": status,
+                })
+                idx += 1
+            except OSError:
+                break
+
     def _collect_from_folders(self, entries: list[dict[str, Any]], errors: list[str]) -> None:
         """Collect startup entries from startup folders."""
-        from pathlib import Path
-
         # User startup folder
         user_startup = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
         self._read_startup_folder(user_startup, "user", entries, errors)
@@ -121,7 +176,13 @@ class StartupCollector(BaseCollector):
         common_startup = Path(os.environ.get("ALLUSERSPROFILE", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
         self._read_startup_folder(common_startup, "system", entries, errors)
 
-    def _read_startup_folder(self, folder: Path, scope: str, entries: list[dict[str, Any]], errors: list[str]) -> None:
+    def _read_startup_folder(
+        self,
+        folder: Path,
+        scope: str,
+        entries: list[dict[str, Any]],
+        errors: list[str],
+    ) -> None:
         """Read .lnk and .exe files from startup folder."""
         if not folder.exists():
             if scope == "system":
