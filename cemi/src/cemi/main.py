@@ -1,12 +1,14 @@
 """CLI entry point for CEMÍ.
 
-Two subcommands are available:
+Three subcommands are available:
 
 * ``cemi scan``     — run a local, metadata-only scan and save a report.
+* ``cemi monitor``  — repeatedly run scans and track changes over time.
 * ``cemi privacy``  — display privacy guarantees and exit immediately.
 """
 from __future__ import annotations
 
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -24,6 +26,7 @@ from cemi.collectors.signatures import SignaturesCollector
 from cemi.collectors.startup import StartupCollector
 from cemi.config import PRIVACY_NOTICE, TOOL_NAME, TOOL_TAGLINE
 from cemi.models import CollectorHealth, Finding, Severity
+from cemi.monitor import compute_diff, create_snapshot, get_latest_snapshot, save_snapshot
 from cemi.reports import generate_html_report, save_html_report, save_json_report
 from cemi.scan_engine import ScanEngine
 
@@ -297,6 +300,132 @@ def scan(
     elif output == OutputFormat.json:
         report_path = save_json_report(result, Path("reports"))
         _console.print(f"JSON report saved to: {report_path}")
+
+
+@app.command()
+def monitor(
+    interval: int = typer.Option(
+        60,
+        "--interval",
+        help="Seconds between scans (default 60).",
+    ),
+    iterations: Optional[int] = typer.Option(
+        None,
+        "--iterations",
+        help="Number of scans to run (default: infinite until interrupted).",
+    ),
+    output: Optional[OutputFormat] = typer.Option(
+        None,
+        "--output",
+        help="Optional: save final scan as html or json report.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        help="Skip the interactive privacy confirmation prompt.",
+    ),
+) -> None:
+    """Repeatedly run scans and track changes over time.
+
+    This is local monitoring mode that detects new and resolved findings,
+    tracks risk score changes, and stores summaries in .cemi/history/.
+    All data stays on this machine — no uploads or telemetry.
+    """
+    _confirm_privacy(yes)
+
+    _console.print("\n[bold]CEMÍ MONITOR[/bold]")
+    _console.print("Starting local monitoring mode. Press Ctrl+C to stop.\n")
+
+    scanner = ScanEngine([
+        InstalledAppsCollector(),
+        ServicesCollector(),
+        NativeMessagingHostsCollector(),
+        BrowserExtensionsCollector(),
+        StartupCollector(),
+        ScheduledTasksCollector(),
+        SignaturesCollector(),
+    ])
+
+    previous_snapshot = get_latest_snapshot()
+    iteration = 0
+
+    try:
+        while True:
+            iteration += 1
+            if iterations is not None and iteration > iterations:
+                break
+
+            _console.print(
+                f"[bold]Iteration {iteration}{f'/{iterations}' if iterations else ''}[/bold]"
+            )
+
+            # Run scan and create snapshot
+            scan_result = scanner.run_scan()
+            snapshot = create_snapshot(scan_result)
+            filepath = save_snapshot(snapshot)
+
+            # Display results
+            risk_style = _RISK_LEVEL_STYLES.get(snapshot.risk_level, "white")
+            _console.print(f"Risk: {snapshot.risk_score}/100 [{risk_style}]{snapshot.risk_level}[/{risk_style}]")
+            _console.print(f"Snapshot saved: {filepath}")
+
+            # Show diff if we have a previous snapshot
+            if previous_snapshot:
+                diff = compute_diff(previous_snapshot, snapshot)
+
+                if diff.new_findings:
+                    _console.print(f"[yellow]New findings: {len(diff.new_findings)}[/yellow]")
+                    for finding in diff.new_findings:
+                        _console.print(f"  + {finding['title']}")
+                else:
+                    _console.print("New findings: 0")
+
+                if diff.resolved_findings:
+                    _console.print(f"[green]Resolved findings: {len(diff.resolved_findings)}[/green]")
+                    for finding in diff.resolved_findings:
+                        _console.print(f"  - {finding['title']}")
+                else:
+                    _console.print("Resolved findings: 0")
+
+                if diff.risk_score_delta != 0:
+                    delta_sign = "+" if diff.risk_score_delta > 0 else ""
+                    delta_style = "red" if diff.risk_score_delta > 0 else "green"
+                    _console.print(
+                        f"Risk score delta: [{delta_style}]{delta_sign}{diff.risk_score_delta}[/{delta_style}]"
+                    )
+
+                if diff.collector_changes:
+                    _console.print(f"Collector changes: {len(diff.collector_changes)}")
+                    for collector, changes in diff.collector_changes.items():
+                        old_str = "OK" if changes["old"] else "FAILED"
+                        new_str = "OK" if changes["new"] else "FAILED"
+                        _console.print(f"  {collector}: {old_str} → {new_str}")
+            else:
+                _console.print("New findings: 0 (baseline scan)")
+                _console.print("Resolved findings: 0 (baseline scan)")
+
+            previous_snapshot = snapshot
+
+            # Wait before next iteration
+            if iterations is None or iteration < iterations:
+                _console.print(f"Next scan in {interval}s...\n")
+                time.sleep(interval)
+
+        _console.print("\nMonitoring complete.")
+
+        # Optional final report
+        if output and iterations is not None:
+            scan_result = scanner.run_scan()
+            if output == OutputFormat.html:
+                html = generate_html_report(scan_result)
+                report_path = save_html_report(html, scan_result.scan_id, Path("reports"))
+                _console.print(f"Final HTML report saved to: {report_path}")
+            elif output == OutputFormat.json:
+                report_path = save_json_report(scan_result, Path("reports"))
+                _console.print(f"Final JSON report saved to: {report_path}")
+
+    except KeyboardInterrupt:
+        _console.print("\n\nMonitoring interrupted by user.")
 
 
 @app.command()

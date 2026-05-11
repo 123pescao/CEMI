@@ -143,12 +143,48 @@ class ScanResult(BaseModel):
     risk_summary: RiskSummary
 
 
+class MonitorSnapshot(BaseModel):
+    """A summarized snapshot of a scan result for monitoring.
+
+    Contains only essential metadata and finding summaries — no raw evidence
+    or collector items, maintaining privacy-first design.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    snapshot_id: str
+    scan_id: str
+    timestamp: datetime
+    risk_score: int
+    risk_level: str
+    finding_titles: list[str]
+    finding_ids: list[str]
+    collector_statuses: dict[str, bool]  # collector_name -> ran_successfully
+
+
+class MonitorDiff(BaseModel):
+    """Result of comparing two sequential monitor snapshots.
+
+    Shows what changed between scans: new findings, resolved findings,
+    risk score change, and collector status changes.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    new_findings: list[dict[str, Any]] = Field(default_factory=list)  # Minimal finding info
+    resolved_findings: list[dict[str, Any]] = Field(default_factory=list)
+    risk_score_delta: int
+    collector_changes: dict[str, dict[str, bool]] = Field(default_factory=dict)
+
+
 __all__ = [
     "Confidence",
     "CollectorHealth",
     "EvidenceItem",
     "EvidenceType",
     "Finding",
+    "MonitorDiff",
+    "MonitorSnapshot",
     "PrivilegeLevel",
     "RiskSummary",
     "ScanResult",
