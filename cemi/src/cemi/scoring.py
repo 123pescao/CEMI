@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from cemi.correlation_engine import CorrelatedSignal
 from cemi.models import Finding, RiskSummary, Severity
 
 _SEVERITY_BASE_SCORES: dict[Severity, int] = {
@@ -44,7 +45,10 @@ def _normalize_category(category: str) -> str:
     return category.strip().lower()
 
 
-def _category_modifier(category: str) -> float:
+def _category_modifier(category: str, finding: Finding) -> float:
+    if isinstance(finding, CorrelatedSignal):
+        return finding.risk_multiplier
+
     normalized = _normalize_category(category)
     for key, modifier in _CATEGORY_MODIFIERS.items():
         if key == normalized or key in normalized:
@@ -77,7 +81,7 @@ def calculate_risk_summary(findings: list[Finding], *, legacy: bool = False) -> 
         raw_score = 0.0
         for finding in findings:
             base = _SEVERITY_BASE_SCORES.get(finding.severity, 0)
-            modifier = _category_modifier(finding.category)
+            modifier = _category_modifier(finding.category, finding)
             raw_score += base * modifier
 
     score = min(100, int(round(raw_score)))

@@ -25,6 +25,7 @@ from cemi.collectors.services import ServicesCollector
 from cemi.collectors.signatures import SignaturesCollector
 from cemi.collectors.startup import StartupCollector
 from cemi.config import PRIVACY_NOTICE, TOOL_NAME, TOOL_TAGLINE
+from cemi.correlation_engine import CorrelatedSignal
 from cemi.models import CollectorHealth, Finding, Severity
 from cemi.monitor import compute_diff, create_snapshot, get_latest_snapshot, save_snapshot
 from cemi.reports import generate_html_report, save_html_report, save_json_report
@@ -100,6 +101,26 @@ def _finding_status(finding: Finding) -> str:
     if confidence == "medium":
         return "Needs Review"
     return "High Priority"
+
+
+def _print_correlated_signals(signals: list[CorrelatedSignal]) -> None:
+    """Print correlated threat signals before the standard findings."""
+    if not signals:
+        return
+
+    _console.print("\n[bold]Correlated Threat Signals[/bold]")
+    for signal in signals:
+        _console.print(f"\n  [bold]{signal.title}[/bold]")
+        _console.print(f"    Status: {signal.status}")
+        _console.print(f"    Confidence: {signal.contextual_confidence}")
+        _console.print(f"    Severity: {signal.severity.value}")
+        _console.print(f"    Risk multiplier: {signal.risk_multiplier}")
+        if signal.contributing_findings:
+            _console.print("    Why CEMÍ correlated this:")
+            for item in signal.contributing_findings:
+                _console.print(f"      - {item}")
+        if signal.reasoning_notes:
+            _console.print(f"    Notes: {' '.join(signal.reasoning_notes)}")
 
 
 def _print_findings(findings: list[Finding]) -> None:
@@ -270,6 +291,7 @@ def scan(
     for health in result.collector_health:
         _print_collector_summary(health)
 
+    _print_correlated_signals(result.correlated_signals)
     _print_findings(result.findings)
 
     _console.print("\n[bold]Summary[/bold]")

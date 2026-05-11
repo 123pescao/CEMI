@@ -27,6 +27,7 @@ from cemi.collectors.base import BaseCollector
 from cemi.config import SCAN_VERSION
 from cemi.models import CollectorHealth, Finding, PrivilegeLevel, ScanResult
 from cemi.scoring import calculate_risk_summary
+from cemi.correlation_engine import generate_correlated_signals
 from cemi.rules.browser_extension_rules import (
     ExtAllUrlsRule,
     ExtBridgeCapabilityRule,
@@ -212,11 +213,15 @@ class ScanEngine:
 
         # Evaluate rules against raw items — fail closed if anything goes wrong.
         findings: list[Finding] = []
+        correlated_signals: list[Finding] = []
         try:
             findings = _build_rule_engine().evaluate(items_by_collector, scan_id)
             findings.sort(key=_finding_priority)
+            correlated_signals = generate_correlated_signals(findings, scan_id)
+            correlated_signals.sort(key=_finding_priority)
         except Exception:  # noqa: BLE001 — rule failures must not kill the scan
             findings = []
+            correlated_signals = []
 
         # Raw items have served their purpose; discard before building ScanResult.
         del items_by_collector
@@ -232,8 +237,9 @@ class ScanEngine:
             privilege_level=_effective_privilege(health_list),
             collector_health=health_list,
             findings=findings,
+            correlated_signals=correlated_signals,
             total_apps_scanned=total_apps_scanned,
-            risk_summary=calculate_risk_summary(findings),
+            risk_summary=calculate_risk_summary(findings + correlated_signals),
         )
 
 

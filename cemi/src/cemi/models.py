@@ -139,6 +139,7 @@ class ScanResult(BaseModel):
     privilege_level: PrivilegeLevel
     collector_health: list[CollectorHealth]
     findings: list[Finding]
+    correlated_signals: list[Finding] = Field(default_factory=list)
     total_apps_scanned: int
     risk_summary: RiskSummary
 

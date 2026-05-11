@@ -6,13 +6,24 @@ import json
 import tempfile
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 from typer.testing import CliRunner
 
 from pathlib import Path
 
 from cemi.main import app
-from cemi.models import CollectorHealth, ScanResult
+from cemi.correlation_engine import CorrelatedSignal
+from cemi.models import (
+    CollectorHealth,
+    Confidence,
+    EvidenceItem,
+    EvidenceType,
+    Finding,
+    ScanResult,
+    Severity,
+)
+from cemi.scoring import calculate_risk_summary
 
 _FAKE_REPORT_PATH = Path("reports/cemi_report_fake.html")
 _FAKE_JSON_PATH = Path("reports/cemi_report_fake.json")
@@ -831,6 +842,111 @@ class TestScanSubcommand:
         with _patch_both():
             result = runner.invoke(app, ["scan", "--output", "json", "--yes"])
         assert result.exit_code == 0
+
+    def test_correlated_threat_signals_section_shown(self) -> None:
+        correlated_finding = Finding(
+            id="EXT-003",
+            instance_id=uuid4(),
+            rule_version="1.0.0",
+            title="Extension Can Inject Scripts and Intercept Traffic",
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            contextual_confidence="medium",
+            reasoning_notes=["Test reasoning."],
+            app="Malicious Extension",
+            category="Browser Extension",
+            official_explanation="Official explanation.",
+            in_other_words="In other words.",
+            why_this_matters="Why this matters.",
+            evidence=[
+                EvidenceItem(type=EvidenceType.PERMISSION, value="scripting", label="permission"),
+            ],
+            recommended_action="Recommended action.",
+            safe_to_ignore_when="Safe to ignore.",
+            false_positive_risk="low",
+            requires_admin_to_verify=False,
+            created_at=datetime.now(timezone.utc),
+            scan_id="scan-test",
+        )
+        nmh_finding = Finding(
+            id="NMH-001",
+            instance_id=uuid4(),
+            rule_version="1.0.0",
+            title="Browser Native Messaging Host Detected",
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            contextual_confidence="high",
+            reasoning_notes=["Test reasoning."],
+            app="Native Host",
+            category="Browser Integration",
+            official_explanation="Official explanation.",
+            in_other_words="In other words.",
+            why_this_matters="Why this matters.",
+            evidence=[
+                EvidenceItem(type=EvidenceType.FILE_PATH, value="manifest.json", label="manifest_path"),
+            ],
+            recommended_action="Recommended action.",
+            safe_to_ignore_when="Safe to ignore.",
+            false_positive_risk="low",
+            requires_admin_to_verify=False,
+            created_at=datetime.now(timezone.utc),
+            scan_id="scan-test",
+        )
+        correlated_signal = CorrelatedSignal(
+            id="CORR-101",
+            instance_id=uuid4(),
+            rule_version="1.0.0",
+            correlation_id="CORR-101",
+            title="Browser Extension Can Reach Native System Access",
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            contextual_confidence="high",
+            status="High Priority",
+            contributing_findings=["EXT-003: Extension Can Inject Scripts and Intercept Traffic", "NMH-001: Browser Native Messaging Host Detected"],
+            evidence_count=2,
+            risk_multiplier=1.4,
+            reasoning_notes=["Browser scripting capability and native messaging host present."],
+            app=None,
+            category="Correlation",
+            official_explanation="A browser extension can bridge browser traffic to a local process.",
+            in_other_words="A browser extension and native host are present together.",
+            why_this_matters="This correlation elevates the threat signal without removing the original findings.",
+            evidence=[
+                EvidenceItem(type=EvidenceType.METADATA, value="2", label="correlated_evidence_count"),
+            ],
+            recommended_action="Review the correlated findings and verify the integration.",
+            safe_to_ignore_when="The integration is a trusted browser helper.",
+            false_positive_risk="medium",
+            requires_admin_to_verify=False,
+            created_at=datetime.now(timezone.utc),
+            scan_id="scan-test",
+        )
+        scan_result = ScanResult(
+            scan_id="scan-test",
+            scan_version="0.1.0",
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+            hostname_redacted="x" * 64,
+            privilege_level="user",
+            collector_health=[_make_health()],
+            findings=[nmh_finding],
+            correlated_signals=[correlated_signal],
+            total_apps_scanned=1,
+            risk_summary=calculate_risk_summary([nmh_finding, correlated_signal]),
+        )
+
+        mock_engine = MagicMock()
+        mock_engine.run_scan.return_value = scan_result
+        with (
+            patch("cemi.main.ScanEngine", return_value=mock_engine),
+            patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
+            patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
+        ):
+            result = runner.invoke(app, ["scan", "--yes"])
+
+        assert result.exit_code == 0
+        assert "Correlated Threat Signals" in result.output
+        assert "Why CEMÍ correlated this" in result.output
 
 
 class TestHistoryCommand:

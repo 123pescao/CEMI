@@ -13,6 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 from cemi.main import app
+from cemi.correlation_engine import CorrelatedSignal
 from cemi.models import (
     CollectorHealth,
     Confidence,
@@ -187,6 +188,47 @@ class TestGenerateHtmlReportStructure:
         assert "Monitoring & Timeline" in html
         assert "cemi monitor --yes --interval 60 --iterations 5" in html
         assert "cemi history" in html
+
+    def test_contains_correlated_threat_signals_section(self) -> None:
+        html = generate_html_report(_make_result())
+        assert "Correlated Threat Signals" in html
+
+    def test_report_displays_correlation_reasoning_when_present(self) -> None:
+        finding = _make_finding(
+            title="Test Medium Finding",
+            severity=Severity.MEDIUM,
+            app="TestApp",
+        )
+        correlated = CorrelatedSignal(
+            id="CORR-101",
+            instance_id=uuid4(),
+            rule_version="1.0.0",
+            correlation_id="CORR-101",
+            title="Browser Extension Can Reach Native System Access",
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            contextual_confidence="high",
+            status="High Priority",
+            category="Correlation",
+            official_explanation="Official explanation.",
+            in_other_words="In other words.",
+            why_this_matters="Why this matters.",
+            evidence=[EvidenceItem(type=EvidenceType.METADATA, value="1", label="count")],
+            recommended_action="Recommended action.",
+            safe_to_ignore_when="Safe to ignore.",
+            false_positive_risk="medium",
+            reasoning_notes=["Correlation reasoning."],
+            contributing_findings=["EXT-003: Extension Can Inject Scripts and Intercept Traffic"],
+            evidence_count=1,
+            risk_multiplier=1.4,
+            requires_admin_to_verify=False,
+            created_at=datetime.now(timezone.utc),
+            scan_id="scan-test",
+        )
+        result = _make_result(findings=[finding])
+        result = result.model_copy(update={"correlated_signals": [correlated]})
+        html = generate_html_report(result)
+        assert "Why CEMÍ correlated this" in html
 
 
 # ---------------------------------------------------------------------------
@@ -603,7 +645,7 @@ class TestSaveJsonReport:
         assert top_keys == {
             "scan_id", "scan_version", "started_at", "completed_at",
             "hostname_redacted", "privilege_level", "collector_health",
-            "findings", "total_apps_scanned", "risk_summary",
+            "findings", "correlated_signals", "total_apps_scanned", "risk_summary",
         }
 
     def test_json_is_valid(self) -> None:
