@@ -74,5 +74,6 @@ Thumbs.db
 
 # Local outputs / scan artifacts (never commit these)
 /reports/
+.cemi/
 *.cemi.json
 *.cemi.html

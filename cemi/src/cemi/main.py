@@ -8,6 +8,7 @@ Three subcommands are available:
 """
 from __future__ import annotations
 
+import sys
 import time
 from enum import Enum
 from pathlib import Path
@@ -61,6 +62,14 @@ def _confirm_privacy(yes: bool) -> None:
     if answer.strip().lower() != "y":
         _console.print("Aborted.")
         raise typer.Exit(code=1)
+
+
+def _warn_non_windows() -> None:
+    """Warn users on non-Windows platforms about limitations."""
+    if sys.platform != "win32":
+        _console.print("[yellow]⚠️  Note: CEMÍ is designed for Windows systems.[/yellow]")
+        _console.print("[yellow]   Some collectors may be skipped or return limited results on this platform.[/yellow]")
+        _console.print()
 
 
 _SEVERITY_STYLES: dict[str, str] = {
@@ -227,6 +236,7 @@ def scan(
 ) -> None:
     """Run a local, metadata-only scan. All analysis and reports stay on this machine."""
     _confirm_privacy(yes)
+    _warn_non_windows()
 
     result = ScanEngine([
         InstalledAppsCollector(),
@@ -348,6 +358,7 @@ def monitor(
     All data stays on this machine — no uploads or telemetry.
     """
     _confirm_privacy(yes)
+    _warn_non_windows()
 
     _console.print("\n[bold]CEMÍ MONITOR[/bold]")
     _console.print("Starting local monitoring mode. Press Ctrl+C to stop.\n")

@@ -138,6 +138,34 @@ class TestRedactString:
         assert "mysecretpassword123" not in result
         assert REDACTED_TOKEN in result
 
+    def test_multiple_tokens_in_string(self) -> None:
+        result = redact_string("sk-abc123456789 and ghp_ABCdef123456789 in one string")
+        assert "sk-abc123456789" not in result
+        assert "ghp_ABCdef123456789" not in result
+        assert result.count(REDACTED_TOKEN) == 2
+
+    def test_token_with_quotes_redacted(self) -> None:
+        result = redact_string('token="sk-abc123456789"')
+        assert "sk-abc123456789" not in result
+        assert REDACTED_TOKEN in result
+
+    def test_hex_in_url_redacted(self) -> None:
+        url = "https://api.example.com/v1/keys/a1b2c3d4e5f678901234567890abcdef"
+        result = redact_string(url)
+        assert "a1b2c3d4e5f678901234567890abcdef" not in result
+        assert REDACTED_TOKEN in result
+
+    def test_base64_in_json_redacted(self) -> None:
+        json_str = '{"data": "SGVsbG8gV29ybGQgVGhpcyBpcyBhIGxvbmdlciBzdHJpbmc="}'
+        result = redact_string(json_str)
+        assert "SGVsbG8gV29ybGQgVGhpcyBpcyBhIGxvbmdlciBzdHJpbmc=" not in result
+        assert REDACTED_TOKEN in result
+
+    def test_case_insensitive_token_detection(self) -> None:
+        result = redact_string("API_KEY=SK-ABC123456789")
+        assert "SK-ABC123456789" not in result
+        assert REDACTED_TOKEN in result
+
 
 # --- redact_evidence_item -----------------------------------------------------
 

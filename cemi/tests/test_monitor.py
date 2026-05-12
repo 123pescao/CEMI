@@ -353,12 +353,11 @@ class TestSnapshotStorage:
 
 
 class TestHistoryDirectory:
-    def test_get_history_dir_creates_directory(self) -> None:
+    def test_get_history_dir_does_not_create_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pathlib.Path.cwd", return_value=Path(tmpdir)):
                 history_dir = get_history_dir()
-                assert history_dir.exists()
-                assert history_dir.is_dir()
+                assert not history_dir.exists()  # Should not create it
 
     def test_get_history_dir_is_local_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -397,23 +396,23 @@ class TestHistoryDirectory:
                 snapshots = list_snapshots()
                 assert len(snapshots) == 2
 
-    def test_get_latest_snapshot_returns_most_recent(self) -> None:
+    def test_get_latest_snapshot_returns_none_when_no_history_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("cemi.monitor.get_history_dir", return_value=Path(tmpdir)):
-                snap1 = MonitorSnapshot(
-                    snapshot_id="snap-1",
-                    scan_id="sc-1",
-                    timestamp=datetime.now(timezone.utc),
-                    risk_score=20,
-                    risk_level="low",
-                    finding_titles=[],
-                    finding_ids=[],
-                    collector_statuses={},
-                )
-                save_snapshot(snap1)
+            with patch("cemi.monitor.get_history_dir", return_value=Path(tmpdir) / "nonexistent"):
                 latest = get_latest_snapshot()
-                assert latest is not None
-                assert latest.snapshot_id == "snap-1"
+                assert latest is None
+
+    def test_list_snapshots_returns_empty_when_no_history_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("cemi.monitor.get_history_dir", return_value=Path(tmpdir) / "nonexistent"):
+                snapshots = list_snapshots()
+                assert snapshots == []
+
+    def test_load_snapshot_returns_none_when_no_history_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("cemi.monitor.get_history_dir", return_value=Path(tmpdir) / "nonexistent"):
+                result = load_snapshot("any.json")
+                assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -422,7 +421,7 @@ class TestHistoryDirectory:
 
 
 class TestMonitorCommand:
-    def test_monitor_creates_history_directory(self) -> None:
+    def test_monitor_calls_save_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pathlib.Path.cwd", return_value=Path(tmpdir)):
                 with patch("cemi.main.create_snapshot") as mock_create:
@@ -432,9 +431,8 @@ class TestMonitorCommand:
                                 from cemi.main import monitor
                                 monitor(interval=1, iterations=1, output=None, yes=True)
 
-                history_dir = Path(tmpdir) / ".cemi" / "history"
-                assert history_dir.exists()
-                assert history_dir.is_dir()
+                # save_snapshot should be called once
+                assert mock_save.call_count == 1
 
     def test_monitor_saves_snapshot_per_iteration(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

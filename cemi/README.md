@@ -2,6 +2,8 @@
 
 CEMÍ is a local-first, privacy-first desktop security tool that inspects system metadata and configuration to help users understand the security posture of their machine. It never accesses personal files, never collects telemetry, and never transmits any data externally. All analysis, reports, and logs remain on the user's device under the user's control.
 
+**Note: CEMÍ is designed for Windows systems.** While it may run on other platforms, some collectors will be skipped and results may be limited. Full functionality requires Windows.
+
 ## Installation
 
 Install from the local repository in editable mode (includes dev dependencies):

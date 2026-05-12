@@ -298,6 +298,40 @@ class TestBothCollectors:
 
 
 # ---------------------------------------------------------------------------
+# Platform Warnings
+# ---------------------------------------------------------------------------
+
+
+class TestPlatformWarnings:
+    def test_scan_shows_warning_on_non_windows(self) -> None:
+        with patch("cemi.main.sys.platform", "linux"):
+            with _patch_both():
+                result = runner.invoke(app, ["scan", "--yes"])
+        assert "⚠️  Note: CEMÍ is designed for Windows systems." in result.output
+        assert "Some collectors may be skipped or return limited results on this platform." in result.output
+
+    def test_scan_no_warning_on_windows(self) -> None:
+        with patch("cemi.main.sys.platform", "win32"):
+            with _patch_both():
+                result = runner.invoke(app, ["scan", "--yes"])
+        assert "⚠️  Note: CEMÍ is designed for Windows systems." not in result.output
+
+    def test_monitor_shows_warning_on_non_windows(self) -> None:
+        with patch("cemi.main.sys.platform", "linux"):
+            with patch("cemi.main.ScanEngine"):
+                with patch("cemi.main.time.sleep"):
+                    result = runner.invoke(app, ["monitor", "--yes", "--iterations", "1"])
+        assert "⚠️  Note: CEMÍ is designed for Windows systems." in result.output
+
+    def test_monitor_no_warning_on_windows(self) -> None:
+        with patch("cemi.main.sys.platform", "win32"):
+            with patch("cemi.main.ScanEngine"):
+                with patch("cemi.main.time.sleep"):
+                    result = runner.invoke(app, ["monitor", "--yes", "--iterations", "1"])
+        assert "⚠️  Note: CEMÍ is designed for Windows systems." not in result.output
+
+
+# ---------------------------------------------------------------------------
 # Privacy confirmation flow
 # ---------------------------------------------------------------------------
 

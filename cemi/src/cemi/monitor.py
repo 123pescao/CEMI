@@ -19,10 +19,9 @@ from cemi.models import MonitorDiff, MonitorSnapshot, ScanResult
 
 
 def get_history_dir() -> Path:
-    """Return the local history directory, creating it if needed."""
+    """Return the local history directory path (does not create it)."""
     cwd = Path.cwd()
     history_dir = cwd / ".cemi" / "history"
-    history_dir.mkdir(parents=True, exist_ok=True)
     return history_dir
 
 
@@ -125,6 +124,7 @@ def save_snapshot(snapshot: MonitorSnapshot) -> Path:
     Returns the path where the snapshot was saved.
     """
     history_dir = get_history_dir()
+    history_dir.mkdir(parents=True, exist_ok=True)
     timestamp_str = snapshot.timestamp.strftime("%Y%m%d_%H%M%S")
     filename = f"snapshot_{timestamp_str}_{snapshot.snapshot_id[:8]}.json"
     filepath = history_dir / filename
@@ -141,6 +141,8 @@ def load_snapshot(filename: str) -> Optional[MonitorSnapshot]:
     Returns None if file does not exist or is invalid.
     """
     history_dir = get_history_dir()
+    if not history_dir.exists():
+        return None
     filepath = history_dir / filename
 
     if not filepath.exists():
