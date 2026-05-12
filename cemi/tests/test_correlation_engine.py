@@ -139,7 +139,7 @@ class TestCorrelationEngine:
                 contextual_confidence="medium",
                 category="Suspicious",
             )
-            for i in range(3)
+            for i in range(5)
         ]
 
         correlated = generate_correlated_signals(signals, "scan-test")
@@ -171,6 +171,92 @@ class TestCorrelationEngine:
         correlated = generate_correlated_signals([ext, nmh], "scan-test")
 
         assert all(signal.title != "Browser Extension Can Reach Native System Access" for signal in correlated)
+
+    def test_corr101_emits_at_most_one_signal_with_multiple_pairs(self) -> None:
+        """Test that CORR-101 creates at most one signal even with multiple extension/native host pairs."""
+        ext1 = _make_finding(
+            finding_id="EXT-003",
+            title="Extension Can Inject Scripts and Intercept Traffic",
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            contextual_confidence="medium",
+            category="Browser Extension",
+            app="Extension 1",
+        )
+        ext2 = _make_finding(
+            finding_id="EXT-004",
+            title="Extension Has Browser-to-App Bridge Capability",
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            contextual_confidence="medium",
+            category="Browser Extension",
+            app="Extension 2",
+        )
+        nmh1 = _make_finding(
+            finding_id="NMH-001",
+            title="Browser Native Messaging Host Detected",
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            contextual_confidence="high",
+            category="Browser Integration",
+            app="Host 1",
+        )
+        nmh2 = _make_finding(
+            finding_id="NMH-001",
+            title="Browser Native Messaging Host Detected",
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            contextual_confidence="high",
+            category="Browser Integration",
+            app="Host 2",
+        )
+
+        correlated = generate_correlated_signals([ext1, ext2, nmh1, nmh2], "scan-test")
+
+        # Should emit exactly one CORR-101 signal, not 4 (2×2)
+        corr101_signals = [s for s in correlated if s.correlation_id == "CORR-101"]
+        assert len(corr101_signals) == 1
+        assert len(corr101_signals[0].contributing_findings) == 4  # All four findings listed
+
+    def test_corr104_does_not_fire_with_three_medium_browser_findings(self) -> None:
+        """Test that CORR-104 does not fire with only 3 medium browser extension findings."""
+        findings = [
+            _make_finding(
+                finding_id="EXT-001",
+                title="Extension Has Access to All Websites",
+                severity=Severity.MEDIUM,
+                confidence=Confidence.MEDIUM,
+                contextual_confidence="medium",
+                category="Browser Extension",
+            )
+            for i in range(3)
+        ]
+
+        correlated = generate_correlated_signals(findings, "scan-test")
+
+        # Should not create CORR-104 since browser extension findings are excluded
+        corr104_signals = [s for s in correlated if s.correlation_id == "CORR-104"]
+        assert len(corr104_signals) == 0
+
+    def test_corr104_fires_with_five_medium_non_browser_findings(self) -> None:
+        """Test that CORR-104 fires with 5+ medium findings from non-browser categories."""
+        findings = [
+            _make_finding(
+                finding_id="PROC-001",
+                title="Process Running from User-Writable Location",
+                severity=Severity.MEDIUM,
+                confidence=Confidence.MEDIUM,
+                contextual_confidence="medium",
+                category="Process Behavior",
+            )
+            for i in range(5)
+        ]
+
+        correlated = generate_correlated_signals(findings, "scan-test")
+
+        # Should create CORR-104
+        corr104_signals = [s for s in correlated if s.correlation_id == "CORR-104"]
+        assert len(corr104_signals) == 1
 
     def test_correlated_signal_evidence_is_high_level_only(self) -> None:
         ext = _make_finding(

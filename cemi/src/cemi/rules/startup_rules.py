@@ -128,7 +128,7 @@ class StartupPersistenceRule(BaseRule):
             instance_id=uuid4(),
             rule_version=RULE_VERSION,
             title=_TITLE,
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             confidence=Confidence.MEDIUM,
             contextual_confidence=contextual_confidence,
             app=item.get("name"),

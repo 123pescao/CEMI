@@ -27,7 +27,7 @@ class TestStartupPersistenceRule:
         assert len(findings) == 1
         f = findings[0]
         assert f.id == "STARTUP-001"
-        assert f.severity == Severity.HIGH
+        assert f.severity == Severity.MEDIUM
         assert f.confidence == Confidence.MEDIUM
 
     def test_no_fire_for_system_path(self) -> None:

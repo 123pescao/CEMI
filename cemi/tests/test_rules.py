@@ -941,7 +941,7 @@ class TestExtCookiesRule:
     def test_severity_medium(self) -> None:
         ext = _ext(permissions=["cookies"])
         f = self._rule().evaluate({"browser_extensions": [ext]}, _SCAN_ID)[0]
-        assert f.severity == Severity.MEDIUM
+        assert f.severity == Severity.LOW
 
     def test_explanation_fields_non_empty(self) -> None:
         ext = _ext(permissions=["cookies"])

@@ -179,9 +179,7 @@ _EXT002_OFFICIAL_EXPLANATION = (
 
 _EXT002_IN_OTHER_WORDS = (
     "This extension can read the login cookies that keep you signed in to "
-    "websites.  If the extension is malicious or gets hijacked, an attacker "
-    "could steal those cookies and log in to your accounts without your "
-    "password."
+    "websites. Most password managers and some other tools legitimately need this access."
 )
 
 _EXT002_WHY_IT_MATTERS = (
@@ -192,10 +190,10 @@ _EXT002_WHY_IT_MATTERS = (
 )
 
 _EXT002_RECOMMENDED_ACTION = (
-    "Confirm the extension genuinely requires cookie access for its stated "
-    "purpose (e.g. a password manager or a developer tool).  If you do not "
-    "recognise the extension, remove it immediately and change passwords for "
-    "any accounts you recently accessed in that browser."
+    "Check if the extension genuinely needs cookie access for its stated "
+    "purpose (such as a password manager). If you don't recognize the extension or it doesn't "
+    "need cookies, consider removing it and changing passwords for any accounts you "
+    "accessed recently in that browser."
 )
 
 _EXT002_SAFE_TO_IGNORE_WHEN = (
@@ -227,7 +225,7 @@ class ExtCookiesRule(BaseRule):
             instance_id=uuid4(),
             rule_version=_EXT002_VERSION,
             title=_EXT002_TITLE,
-            severity=Severity.MEDIUM,
+            severity=Severity.LOW,
             confidence=Confidence.MEDIUM,
             app=ext.get("name"),
             category="Browser Extension",

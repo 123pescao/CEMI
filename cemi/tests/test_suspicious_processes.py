@@ -43,7 +43,7 @@ class TestSuspiciousProcessesRule:
         assert len(findings) == 1
         f = findings[0]
         assert f.id == "PROC-001"
-        assert f.severity == Severity.HIGH
+        assert f.severity == Severity.MEDIUM
         assert f.confidence == Confidence.MEDIUM
         assert f.app == "malware.exe"
         assert f.category == "Process Behavior"

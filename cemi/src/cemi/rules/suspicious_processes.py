@@ -170,7 +170,7 @@ class SuspiciousProcessesRule(BaseRule):
             instance_id=uuid4(),
             rule_version=RULE_VERSION,
             title=_TITLE_PROC001,
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             confidence=Confidence.MEDIUM,
             app=proc.get("name"),
             category="Process Behavior",

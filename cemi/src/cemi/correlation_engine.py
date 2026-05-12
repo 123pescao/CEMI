@@ -140,39 +140,53 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
     ext_findings = _find_findings_by_ids(findings, ["EXT-003", "EXT-004"])
     nmh_findings = _find_findings_by_ids(findings, ["NMH-001"])
     if ext_findings and nmh_findings:
+        # CORR-101: Generate at most one signal per scan, not N×M
+        has_unsafe_combo = False
+        contributing_exts = []
+        contributing_nmhs = []
         for ext in ext_findings:
             for nmh in nmh_findings:
                 if _known_safe_browser_native_combo(ext, nmh):
                     continue
-                correlated.append(
-                    _make_correlated_signal(
-                        correlation_id="CORR-101",
-                        title="Browser Extension Can Reach Native System Access",
-                        severity=Severity.HIGH,
-                        confidence=Confidence.HIGH,
-                        contextual_confidence="high",
-                        status="High Priority",
-                        category="Correlation",
-                        official_explanation=(
-                            "A browser extension with scripting or native bridge capability is present "
-                            "alongside a native messaging host. This creates a potential browser-to-system bridge."
-                        ),
-                        in_other_words=(
-                            "An extension may be able to pass data from web pages to a local program on this machine."
-                        ),
-                        why_this_matters=(
-                            "The combination of browser scripting capability and native messaging access is a strong "
-                            "indicator of a bridge that could be abused for data exfiltration or covert local control."
-                        ),
-                        recommended_action=(
-                            "Review the extension and the associated native messaging host. Remove the extension or "
-                            "native host manifest if this integration is unexpected."
-                        ),
-                        contributing_findings=[ext, nmh],
-                        scan_id=scan_id,
-                        risk_multiplier=1.4,
-                    )
+                has_unsafe_combo = True
+                if ext not in contributing_exts:
+                    contributing_exts.append(ext)
+                if nmh not in contributing_nmhs:
+                    contributing_nmhs.append(nmh)
+        
+        if has_unsafe_combo:
+            correlated.append(
+                _make_correlated_signal(
+                    correlation_id="CORR-101",
+                    title="Browser Extension Can Reach Native System Access",
+                    severity=Severity.HIGH,
+                    confidence=Confidence.HIGH,
+                    contextual_confidence="high",
+                    status="High Priority",
+                    category="Correlation",
+                    official_explanation=(
+                        "One or more browser extensions with scripting or native bridge capability "
+                        "are present alongside native messaging hosts. This creates potential "
+                        "browser-to-system bridges."
+                    ),
+                    in_other_words=(
+                        "Extensions that can modify web pages are installed alongside programs "
+                        "that can act as bridges between your browser and local system."
+                    ),
+                    why_this_matters=(
+                        "Combining DOM-level script injection with native messaging creates "
+                        "covert channels for data exfiltration or remote control without obvious "
+                        "network activity."
+                    ),
+                    recommended_action=(
+                        "Review the flagged extensions and native messaging hosts. Remove any "
+                        "unrecognized combinations."
+                    ),
+                    contributing_findings=contributing_exts + contributing_nmhs,
+                    scan_id=scan_id,
+                    risk_multiplier=1.4,
                 )
+            )
 
     startup_findings = _find_findings_by_ids(findings, ["STARTUP-001", "PERSIST-002"])
     startup_strong = [f for f in startup_findings if f.contextual_confidence.lower() != "low"]
@@ -234,8 +248,8 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
             )
         )
 
-    medium_signals = [f for f in findings if f.severity == Severity.MEDIUM]
-    if len(medium_signals) >= 3:
+    medium_signals = [f for f in findings if f.severity == Severity.MEDIUM and "browser" not in f.category.lower()]
+    if len(medium_signals) >= 5:
         correlated.append(
             _make_correlated_signal(
                 correlation_id="CORR-104",
@@ -246,13 +260,16 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
                 status="Needs Review",
                 category="Correlation",
                 official_explanation=(
-                    "Three or more medium-severity signals were detected together, increasing the likelihood of a meaningful threat."
+                    "Five or more medium-severity signals from diverse categories were detected together, "
+                    "increasing the likelihood of a meaningful threat."
                 ),
                 in_other_words=(
-                    "Several suspicious behaviors were observed at once, which is more concerning than any one alone."
+                    "Several suspicious behaviors from different areas were observed at once, which is more "
+                    "concerning than any one alone."
                 ),
                 why_this_matters=(
-                    "Multiple weak or medium-level signals often compound into a stronger indicator of compromise."
+                    "Multiple weak or medium-level signals from diverse sources often compound into a "
+                    "stronger indicator of compromise."
                 ),
                 recommended_action=(
                     "Review the contributing findings together and prioritise the highest-risk items for investigation."
