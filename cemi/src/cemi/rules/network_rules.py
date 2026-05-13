@@ -50,7 +50,7 @@ _WHY_THIS_MATTERS_NET002 = (
 )
 
 _RECOMMENDED_ACTION_NET001 = (
-    "Check what program this is and verify it needs network access. Stop it if unknown."
+    "Verify the program, publisher, and install location. Do not disable or delete it until you confirm whether the behavior is expected."
 )
 
 _RECOMMENDED_ACTION_NET002 = (
@@ -91,7 +91,7 @@ def _build_evidence_net001(conn: dict[str, Any]) -> list[EvidenceItem]:
         ),
         EvidenceItem(
             type=EvidenceType.NETWORK_CONNECTION,
-            value=f"{conn.get('remote_address', '[unknown]')}:{conn.get('remote_port', '[unknown]')}",
+            value=f"remote port {conn.get('remote_port', '[unknown]')}",
             label="remote_connection",
         ),
         EvidenceItem(
@@ -125,11 +125,18 @@ class NetworkConnectionsRule(BaseRule):
         if not connections:
             return []
 
+        seen_keys: set[tuple[str, str]] = set()
         for conn in connections:
             if not conn.get("remote_address") or not conn.get("remote_port"):
                 continue
 
-            exe_path = conn.get("exe_path_redacted", "")
+            process_name = (conn.get("process_name") or "").strip().lower()
+            exe_path = (conn.get("exe_path_redacted") or "").strip().lower()
+            dedupe_key = (process_name, exe_path)
+            if dedupe_key in seen_keys:
+                continue
+            seen_keys.add(dedupe_key)
+
             is_user_writable = _is_user_writable_path(exe_path)
 
             # NET-001: basic connection
@@ -153,6 +160,7 @@ class NetworkConnectionsRule(BaseRule):
             title=_TITLE_NET001,
             severity=Severity.LOW,
             confidence=Confidence.HIGH,
+            contextual_confidence="medium",
             app=conn.get("process_name"),
             category="Network Activity",
             official_explanation=_OFFICIAL_EXPLANATION_NET001,

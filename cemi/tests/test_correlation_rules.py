@@ -52,7 +52,7 @@ class TestCorrelationSignalsRule:
 
         corr002 = [f for f in findings if f.id == "CORR-002"]
         assert len(corr002) == 1
-        assert corr002[0].severity == Severity.CRITICAL  # user-writable
+        assert corr002[0].severity == Severity.HIGH  # user-writable is still suspicious but not critical
 
     def test_corr003_fires_for_untrusted_process_with_network(self) -> None:
         proc = {
@@ -124,6 +124,48 @@ class TestCorrelationSignalsRule:
 
         corr002 = [f for f in findings if f.id == "CORR-002"]
         assert len(corr002) == 0
+
+    def test_corr002_deduplicates_same_startup_process(self) -> None:
+        startup = {
+            "name": "Chrome",
+            "source": "registry",
+            "scope": "user",
+            "command": r"C:\Program Files\Google\Chrome\chrome.exe",
+            "path_redacted": r"c:\program files\google\chrome\chrome.exe",
+        }
+        conn_a = {
+            "pid": 1111,
+            "process_name": "chrome.exe",
+            "local_address": "127.0.0.1",
+            "local_port": 54321,
+            "remote_address": "198.51.100.1",
+            "remote_port": 443,
+            "status": "ESTABLISHED",
+            "exe_path_redacted": r"c:\program files\google\chrome\chrome.exe",
+        }
+        conn_b = {
+            "pid": 1112,
+            "process_name": "chrome.exe",
+            "local_address": "127.0.0.1",
+            "local_port": 54322,
+            "remote_address": "203.0.113.2",
+            "remote_port": 80,
+            "status": "ESTABLISHED",
+            "exe_path_redacted": r"c:\program files\google\chrome\chrome.exe",
+        }
+        findings = self._rule().evaluate(
+            {
+                "startup": [startup],
+                "network_connections": [conn_a, conn_b],
+                "processes": [],
+                "signatures": [],
+            },
+            _SCAN_ID,
+        )
+
+        corr002 = [f for f in findings if f.id == "CORR-002"]
+        assert len(corr002) == 1
+        assert corr002[0].severity == Severity.MEDIUM
 
     def test_evidence_includes_all_signals(self) -> None:
         startup = {

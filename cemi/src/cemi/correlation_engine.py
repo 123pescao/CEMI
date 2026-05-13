@@ -27,7 +27,14 @@ class CorrelatedSignal(Finding):
 
 
 def _contributing_titles(findings: list[Finding]) -> list[str]:
-    return [f"{finding.id}: {finding.title}" for finding in findings]
+    titles = []
+    for finding in findings:
+        title = f"{finding.id}: {finding.title}"
+        if finding.app:
+            title = f"{title} ({finding.app})"
+        titles.append(title)
+    deduped = list(dict.fromkeys(titles))
+    return deduped
 
 
 def _combine_evidence_count(findings: list[Finding]) -> int:
@@ -124,12 +131,17 @@ def _find_matching_path_findings(findings: list[Finding], source_ids: Iterable[s
                 target_paths.setdefault(path.lower(), []).append(finding)
 
     matches: list[tuple[Finding, Finding]] = []
+    seen_pairs: set[tuple[tuple[str, str], tuple[str, str]]] = set()
     for path, sources in source_paths.items():
         targets = target_paths.get(path)
         if not targets:
             continue
         for source in sources:
             for target in targets:
+                key = ((source.id, str(source.instance_id)), (target.id, str(target.instance_id)))
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
                 matches.append((source, target))
     return matches
 
@@ -221,14 +233,30 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
     unsigned_network_matches = _find_matching_path_findings(findings, ["PERSIST-001"], ["NET-001", "NET-002"])
     if unsigned_network_matches:
         source, target = unsigned_network_matches[0]
+        if target.id == "NET-001" and target.severity == Severity.LOW:
+            corr_severity = Severity.HIGH
+            corr_confidence = Confidence.MEDIUM
+            corr_status = "Needs Review"
+            recommended_action = (
+                "Verify the program's origin and whether the network activity is expected. "
+                "Do not stop it until confirmed."
+            )
+        else:
+            corr_severity = Severity.HIGH
+            corr_confidence = Confidence.HIGH
+            corr_status = "Critical Investigation"
+            recommended_action = (
+                "Stop the executable and review its origin. Quarantine or remove it if you cannot verify it."
+            )
+
         correlated.append(
             _make_correlated_signal(
                 correlation_id="CORR-103",
                 title="Unsigned Executable with Active Network Connection",
-                severity=Severity.HIGH,
-                confidence=Confidence.HIGH,
-                contextual_confidence="high",
-                status="Critical Investigation",
+                severity=corr_severity,
+                confidence=corr_confidence,
+                contextual_confidence="high" if corr_confidence == Confidence.HIGH else "medium",
+                status=corr_status,
                 category="Correlation",
                 official_explanation=(
                     "An unsigned or unknown executable is actively making network connections."
@@ -239,9 +267,7 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
                 why_this_matters=(
                     "Unsigned executables that connect to the network are more likely to be malware or unwanted software."
                 ),
-                recommended_action=(
-                    "Stop the executable and review its origin. Quarantine or remove it if you cannot verify it."
-                ),
+                recommended_action=recommended_action,
                 contributing_findings=[source, target],
                 scan_id=scan_id,
                 risk_multiplier=1.6,

@@ -27,12 +27,12 @@ _TITLE_CORR003 = "Suspicious Process With Weak Trust and Network Activity"
 
 _OFFICIAL_EXPLANATION_CORR002 = (
     "The same executable appears in both startup persistence entries and active network connections. "
-    "This suggests a program that automatically starts and communicates externally, a hallmark of malware."
+    "This may be seen in unwanted or malicious software, but can also be legitimate."
 )
 
 _OFFICIAL_EXPLANATION_CORR003 = (
-    "The same executable is running, has unknown/unsigned trust status, and is making network connections. "
-    "This combination suggests potential malware activity."
+    "The same executable is running, has unknown or unsigned trust status, and is making network connections. "
+    "This combination increases the need for review."
 )
 
 _IN_OTHER_WORDS_CORR002 = (
@@ -44,20 +44,19 @@ _IN_OTHER_WORDS_CORR003 = (
 )
 
 _WHY_THIS_MATTERS_CORR002 = (
-    "Combining startup persistence with network activity is a strong indicator of compromise. "
-    "Malware often uses auto-start for resilience and network communication for exfiltration or command-and-control."
+    "Combining startup persistence with network activity may require review because it can occur in both benign and malicious scenarios."
 )
 
 _WHY_THIS_MATTERS_CORR003 = (
-    "Multiple red flags together (unsigned, running, networking) suggest higher risk than any signal alone."
+    "Multiple red flags together (unsigned, running, networking) suggest higher risk than any single signal alone."
 )
 
 _RECOMMENDED_ACTION_CORR002 = (
-    "Remove the startup entry and stop the process. Investigate the executable source and purpose."
+    "Verify publisher, install location, and whether the behavior is expected. Do not disable or delete it until confirmed."
 )
 
 _RECOMMENDED_ACTION_CORR003 = (
-    "Stop the process immediately. Review startup entries and network connections. Consider quarantine."
+    "Review the process, startup entries, and network connections. Do not disable or delete until you confirm the software's purpose."
 )
 
 _SAFE_TO_IGNORE_WHEN_CORR002 = (
@@ -111,7 +110,7 @@ def _build_evidence_corr002(startup: dict[str, Any], conn: dict[str, Any]) -> li
         ),
         EvidenceItem(
             type=EvidenceType.NETWORK_CONNECTION,
-            value=f"{conn.get('remote_address', '[unknown]')}:{conn.get('remote_port', '[unknown]')}",
+            value=f"remote port {conn.get('remote_port', '[unknown]')}",
             label="network_target",
         ),
     ]
@@ -137,7 +136,7 @@ def _build_evidence_corr003(proc: dict[str, Any], sig: dict[str, Any], conn: dic
         ),
         EvidenceItem(
             type=EvidenceType.NETWORK_CONNECTION,
-            value=f"{conn.get('remote_address', '[unknown]')}:{conn.get('remote_port', '[unknown]')}",
+            value=f"remote port {conn.get('remote_port', '[unknown]')}",
             label="network_connection",
         ),
     ]
@@ -175,6 +174,7 @@ class CorrelationSignalsRule(BaseRule):
     ) -> list[Finding]:
         """Detect startup entries that match network-active processes."""
         findings: list[Finding] = []
+        seen_pairs: set[tuple[str, str]] = set()
 
         for startup in startup_items:
             startup_path = _normalize_path(startup.get("path_redacted", ""))
@@ -187,8 +187,14 @@ class CorrelationSignalsRule(BaseRule):
 
                 conn_exe_path = _normalize_path(conn.get("exe_path_redacted", ""))
                 if startup_path == conn_exe_path or startup_path in conn_exe_path:
+                    process_name = (conn.get("process_name") or "").strip().lower()
+                    dedupe_key = (startup_path, process_name)
+                    if dedupe_key in seen_pairs:
+                        continue
+                    seen_pairs.add(dedupe_key)
+
                     is_user_writable = _is_user_writable_path(startup.get("path_redacted", ""))
-                    severity = Severity.CRITICAL if is_user_writable else Severity.HIGH
+                    severity = Severity.HIGH if is_user_writable else Severity.MEDIUM
 
                     findings.append(
                         Finding(
@@ -197,7 +203,7 @@ class CorrelationSignalsRule(BaseRule):
                             rule_version=RULE_VERSION,
                             title=_TITLE_CORR002,
                             severity=severity,
-                            confidence=Confidence.HIGH,
+                            confidence=Confidence.MEDIUM,
                             app=conn.get("process_name"),
                             category="Correlation",
                             official_explanation=_OFFICIAL_EXPLANATION_CORR002,
@@ -225,6 +231,7 @@ class CorrelationSignalsRule(BaseRule):
         """Detect untrusted processes making network connections."""
         findings: list[Finding] = []
 
+        seen_keys: set[tuple[str, str]] = set()
         for proc in processes:
             proc_path = _normalize_path(proc.get("exe_path", ""))
             if not proc_path:
@@ -247,6 +254,12 @@ class CorrelationSignalsRule(BaseRule):
 
                     conn_exe_path = _normalize_path(conn.get("exe_path_redacted", ""))
                     if conn_exe_path == proc_path:
+                        process_name = (proc.get("name") or "").strip().lower()
+                        dedupe_key = (proc_path, process_name)
+                        if dedupe_key in seen_keys:
+                            continue
+                        seen_keys.add(dedupe_key)
+
                         is_user_writable = _is_user_writable_path(proc_path)
                         severity = Severity.CRITICAL if is_user_writable else Severity.HIGH
 

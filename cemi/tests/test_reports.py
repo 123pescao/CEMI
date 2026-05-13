@@ -114,6 +114,80 @@ def _make_result(
     )
 
 
+def test_generate_html_renders_enum_severity_values() -> None:
+    finding = _make_finding(severity=Severity.LOW, reasoning_notes=["Testing severity rendering."])
+    correlated = [
+        CorrelatedSignal(
+            id="CORR-999",
+            instance_id=uuid4(),
+            rule_version="1.0.0",
+            title="Test Correlated Signal",
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            contextual_confidence="medium",
+            reasoning_notes=["Test."],
+            app=None,
+            category="Correlation",
+            official_explanation="Official.",
+            in_other_words="In other words.",
+            why_this_matters="Why this matters.",
+            evidence=[EvidenceItem(type=EvidenceType.METADATA, value="test", label="test")],
+            recommended_action="Action.",
+            safe_to_ignore_when="Safe.",
+            false_positive_risk="low",
+            requires_admin_to_verify=False,
+            created_at=datetime.now(timezone.utc),
+            scan_id="scan-report-001",
+            correlation_id="CORR-999",
+            status="Needs Review",
+            contributing_findings=["TST-001: Test Finding"],
+            evidence_count=1,
+            risk_multiplier=1.0,
+        )
+    ]
+    result = ScanResult(
+        scan_id="scan-report-001",
+        scan_version="0.1.0",
+        started_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+        hostname_redacted="a" * 64,
+        privilege_level="user",
+        collector_health=[_make_health("installed_apps", items=1)],
+        findings=[finding],
+        total_apps_scanned=1,
+        risk_summary=calculate_risk_summary([finding]),
+        correlated_signals=correlated,
+    )
+    html = generate_html_report(result)
+    assert "Severity.HIGH" not in html
+    assert "Severity.LOW" not in html
+    assert "Severity.MEDIUM" not in html
+    assert "Severity.CRITICAL" not in html
+    assert "HIGH" in html
+    assert "LOW" in html
+
+
+def test_generate_html_does_not_use_alarmist_wording() -> None:
+    finding = _make_finding(
+        title="Network connection",
+        severity=Severity.LOW,
+        app="chrome.exe",
+        evidence_count=1,
+    )
+    result = _make_result(findings=[finding])
+    html = generate_html_report(result)
+    assert "hallmark of malware" not in html
+    assert "strong indicator of compromise" not in html
+    assert "remove the startup entry and stop the process" not in html
+    assert "stop it if unknown" not in html
+    assert "malware detected" not in html
+    assert "spyware detected" not in html
+    assert "trojan detected" not in html
+    assert "intrusion detected" not in html
+    assert "remove immediately" not in html
+    assert "delete immediately" not in html
+
+
 @contextmanager
 def _patch_all_collectors():
     """Patch all four collectors and report-save functions for isolated CLI tests."""

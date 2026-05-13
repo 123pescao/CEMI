@@ -13,14 +13,16 @@ from cemi.models import Finding, ScanResult, Severity
 def _finding_status(finding: Finding) -> str:
     confidence = finding.contextual_confidence.lower()
 
-    if finding.severity == Severity.CRITICAL or (
-        confidence == "high" and finding.severity in {Severity.HIGH, Severity.CRITICAL}
-    ):
-        return "Critical Investigation"
+    if finding.severity == Severity.LOW and confidence != "low":
+        return "Informational"
     if confidence == "low":
         return "Likely Safe"
     if confidence == "medium":
         return "Needs Review"
+    if finding.severity == Severity.CRITICAL or (
+        confidence == "high" and finding.severity in {Severity.HIGH, Severity.CRITICAL}
+    ):
+        return "Critical Investigation"
     return "High Priority"
 
 

@@ -344,7 +344,7 @@
                             <div class="finding-meta">
                                 <span><strong>Status:</strong> {{ signal.status }}</span>
                                 <span><strong>Contextual Confidence:</strong> {{ signal.contextual_confidence }}</span>
-                                <span><strong>Severity:</strong> {{ signal.severity }}</span>
+                                <span><strong>Severity:</strong> {{ signal.severity.value }}</span>
                             </div>
                             <div class="finding-copy">
                                 <p><strong>Why CEMÍ correlated this:</strong></p>
@@ -391,7 +391,7 @@
                                     <article class="finding-card">
                                         <h3>{{ finding.title }}</h3>
                                         <div class="finding-meta">
-                                            <span><strong>Severity:</strong> {{ finding.severity }}</span>
+                                            <span><strong>Severity:</strong> {{ finding.severity.value }}</span>
                                             <span><strong>Status:</strong> {{ _finding_status(finding) }}</span>
                                             <span><strong>Contextual Confidence:</strong> {{ finding.contextual_confidence }}</span>
                                             <span><strong>Category:</strong> {{ finding.category }}</span>

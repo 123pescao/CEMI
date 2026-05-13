@@ -82,4 +82,49 @@ class TestNetworkConnectionsRule:
 
         net001 = [f for f in findings if f.id == "NET-001"][0]
         evidence_values = {ev.value for ev in net001.evidence}
-        assert "93.184.216.34:443" in evidence_values
+        assert "remote port 443" in evidence_values
+        assert all("93.184.216.34" not in val for val in evidence_values)
+
+    def test_net001_deduplicates_same_process_connections(self) -> None:
+        conn_a = {
+            "pid": 1234,
+            "process_name": "chrome.exe",
+            "local_address": "127.0.0.1",
+            "local_port": 54321,
+            "remote_address": "8.8.8.8",
+            "remote_port": 443,
+            "status": "ESTABLISHED",
+            "exe_path_redacted": r"C:\Program Files\Google\Chrome\chrome.exe",
+        }
+        conn_b = {
+            "pid": 1235,
+            "process_name": "chrome.exe",
+            "local_address": "127.0.0.1",
+            "local_port": 54322,
+            "remote_address": "1.1.1.1",
+            "remote_port": 80,
+            "status": "ESTABLISHED",
+            "exe_path_redacted": r"C:\Program Files\Google\Chrome\chrome.exe",
+        }
+        findings = self._rule().evaluate({"network_connections": [conn_a, conn_b]}, _SCAN_ID)
+
+        net001 = [f for f in findings if f.id == "NET-001"]
+        assert len(net001) == 1
+
+    def test_net001_evidence_does_not_include_ips(self) -> None:
+        conn = {
+            "pid": 2222,
+            "process_name": "chrome.exe",
+            "local_address": "127.0.0.1",
+            "local_port": 54321,
+            "remote_address": "203.0.113.10",
+            "remote_port": 443,
+            "status": "ESTABLISHED",
+            "exe_path_redacted": r"C:\Program Files\Google\Chrome\chrome.exe",
+        }
+        findings = self._rule().evaluate({"network_connections": [conn]}, _SCAN_ID)
+
+        net001 = [f for f in findings if f.id == "NET-001"][0]
+        evidence_values = {ev.value for ev in net001.evidence}
+        assert all("203.0.113.10" not in val for val in evidence_values)
+        assert all("127.0.0.1" not in val for val in evidence_values)

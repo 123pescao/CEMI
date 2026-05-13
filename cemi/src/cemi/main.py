@@ -396,7 +396,7 @@ def monitor(
             # Display results
             risk_style = _RISK_LEVEL_STYLES.get(snapshot.risk_level, "white")
             _console.print(f"Risk: {snapshot.risk_score}/100 [{risk_style}]{snapshot.risk_level}[/{risk_style}]")
-            _console.print(f"Snapshot saved: {filepath}")
+            _console.print(f"Snapshot saved: {filepath.relative_to(Path.cwd())}")
 
             # Show diff if we have a previous snapshot
             if previous_snapshot:

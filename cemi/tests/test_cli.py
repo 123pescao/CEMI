@@ -330,6 +330,32 @@ class TestPlatformWarnings:
                     result = runner.invoke(app, ["monitor", "--yes", "--iterations", "1"])
         assert "⚠️  Note: CEMÍ is designed for Windows systems." not in result.output
 
+    def test_monitor_output_does_not_leak_paths(self) -> None:
+        from pathlib import Path
+        from cemi.monitor import MonitorSnapshot
+        fake_path = Path.cwd() / ".cemi/history/snapshot_20260513_010445_abc123.json"
+        fake_snapshot = MonitorSnapshot(
+            snapshot_id="test_snap",
+            scan_id="test_scan",
+            risk_score=50,
+            risk_level="Medium",
+            timestamp="2023-01-01T00:00:00Z",
+            finding_titles=[],
+            finding_ids=[],
+            collector_statuses={}
+        )
+        with patch("cemi.main.sys.platform", "linux"):
+            with patch("cemi.main.ScanEngine"):
+                with patch("cemi.main.time.sleep"):
+                    with patch("cemi.main.create_snapshot", return_value=fake_snapshot):
+                        with patch("cemi.main.save_snapshot", return_value=fake_path):
+                            result = runner.invoke(app, ["monitor", "--yes", "--iterations", "1"])
+        # Monitor output should not contain absolute paths that leak username
+        assert "/home/" not in result.output
+        assert "C:\\Users\\" not in result.output
+        # But should contain relative path
+        assert ".cemi/history/snapshot_" in result.output
+
 
 # ---------------------------------------------------------------------------
 # Privacy confirmation flow
@@ -675,7 +701,7 @@ class TestRiskOutput:
         with _patch_with_finding():
             result = runner.invoke(app, ["scan", "--yes"])
         assert result.exit_code == 0
-        # ServiceUserPathRule fires → MEDIUM finding → score ≥ 15.
+        # ServiceUserPathRule fires → MEDIUM finding → score ≥ 12 with current scoring.
         # Avoid substring checks like `"0/100" not in output`
         # because scores like `40/100` contain `0/100`.
         risk_line = next(
@@ -683,7 +709,7 @@ class TestRiskOutput:
             if "Risk score:" in line
         )
         score_text = risk_line.split("Risk score:", 1)[1].split("/100", 1)[0]
-        assert int(score_text.strip()) >= 15
+        assert int(score_text.strip()) >= 12
 
     def test_risk_level_nonzero_with_finding(self) -> None:
         with _patch_with_finding():

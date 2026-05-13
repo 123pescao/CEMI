@@ -126,7 +126,38 @@ class TestCorrelationEngine:
 
         assert len(correlated) == 1
         assert correlated[0].title == "Unsigned Executable with Active Network Connection"
-        assert correlated[0].status == "Critical Investigation"
+        assert correlated[0].status == "Needs Review"
+        assert correlated[0].severity == Severity.HIGH
+
+    def test_net001_low_correlation_does_not_escalate_to_critical(self) -> None:
+        persist = _make_finding(
+            finding_id="PERSIST-001",
+            title="Unsigned or Unknown Executable in User-Writable Location",
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            contextual_confidence="medium",
+            category="Persistence",
+            evidence=[
+                EvidenceItem(type=EvidenceType.FILE_PATH, value="C:\\Users\\Example\\evil.exe", label="executable path"),
+            ],
+        )
+        net = _make_finding(
+            finding_id="NET-001",
+            title="Process Has Active External Network Connection",
+            severity=Severity.LOW,
+            confidence=Confidence.HIGH,
+            contextual_confidence="medium",
+            category="Network Activity",
+            evidence=[
+                EvidenceItem(type=EvidenceType.FILE_PATH, value="C:\\Users\\Example\\evil.exe", label="exe_path"),
+            ],
+        )
+
+        correlated = generate_correlated_signals([persist, net], "scan-test")
+
+        assert len(correlated) == 1
+        assert correlated[0].title == "Unsigned Executable with Active Network Connection"
+        assert correlated[0].status == "Needs Review"
         assert correlated[0].severity == Severity.HIGH
 
     def test_multiple_medium_signals_correlation(self) -> None:
