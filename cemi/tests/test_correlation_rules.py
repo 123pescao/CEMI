@@ -92,7 +92,7 @@ class TestCorrelationSignalsRule:
 
         corr003 = [f for f in findings if f.id == "CORR-003"]
         assert len(corr003) == 1
-        assert corr003[0].severity == Severity.CRITICAL  # user-writable
+        assert corr003[0].severity == Severity.HIGH  # user-writable is still suspicious but not critical
 
     def test_no_corr002_without_matching_paths(self) -> None:
         startup = {

@@ -46,15 +46,15 @@ _WHY_THIS_MATTERS_NET001 = (
 )
 
 _WHY_THIS_MATTERS_NET002 = (
-    "Malware often runs from user folders and communicates externally to exfiltrate data or receive commands."
+    "Processes in user-writable locations may communicate externally for legitimate or unwanted reasons. Verify whether this behavior is expected."
 )
 
 _RECOMMENDED_ACTION_NET001 = (
-    "Verify the program, publisher, and install location. Do not disable or delete it until you confirm whether the behavior is expected."
+    "Verify the program, publisher, and install location. Do not disable, delete, or remove it until you confirm whether the behavior is expected."
 )
 
 _RECOMMENDED_ACTION_NET002 = (
-    "This combination suggests higher risk. Verify the program's legitimacy and purpose."
+    "This combination suggests higher risk. Verify the program's legitimacy and purpose before making changes."
 )
 
 _SAFE_TO_IGNORE_WHEN_NET001 = (

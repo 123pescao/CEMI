@@ -28,7 +28,8 @@ _LEGACY_SEVERITY_SCORES: dict[Severity, int] = {
 }
 
 _CATEGORY_MODIFIERS: dict[str, float] = {
-    "correlation": 1.8,
+    "correlation": 1.75,
+    "service": 1.5,
     "trust": 1.5,
     "network": 1.2,
     "persistence": 0.8,

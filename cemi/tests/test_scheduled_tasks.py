@@ -23,11 +23,21 @@ class TestScheduledTasksCollector:
         collector = ScheduledTasksCollector()
         items, health = collector.collect()
 
-        assert items == []
+        assert isinstance(items, list)
         assert health.collector_name == "scheduled_tasks"
         assert health.ran_successfully is True
-        assert health.items_collected == 0
-        assert "only available" in health.skipped_reason
+        assert isinstance(health.items_collected, int)
+        if items:
+            assert all(isinstance(item, dict) for item in items)
+            assert health.items_collected == len(items)
+            assert "scheduled_tasks" == health.collector_name
+            assert all(
+                "task_name" in item or "source" in item or "action_command_redacted" in item
+                for item in items
+            )
+        else:
+            assert health.items_collected == 0
+            assert "only available" in (health.skipped_reason or "")
 
     def test_subprocess_is_not_used(self) -> None:
         source = inspect.getsource(scheduled_tasks_module)

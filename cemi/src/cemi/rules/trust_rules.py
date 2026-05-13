@@ -33,12 +33,12 @@ _IN_OTHER_WORDS = (
 )
 
 _WHY_THIS_MATTERS = (
-    "Legitimate software is digitally signed to prove authenticity. Malware often avoids "
+    "Legitimate software is digitally signed to prove authenticity. Some unwanted software avoids "
     "signing or uses stolen certificates. Finding unsigned executables in user folders is a risk indicator."
 )
 
 _RECOMMENDED_ACTION = (
-    "Verify the program's source and publisher. If it's not from a trusted vendor, remove it."
+    "Verify the program's source, publisher, and install location. If the software is unexpected, do not disable, delete, or remove it until you have confirmed its purpose."
 )
 
 _SAFE_TO_IGNORE_WHEN = (

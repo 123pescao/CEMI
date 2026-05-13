@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
+import os
 
 from cemi.models import (
     Confidence,
@@ -44,19 +45,19 @@ _IN_OTHER_WORDS_PROC002 = (
 )
 
 _WHY_THIS_MATTERS_PROC001 = (
-    "Malware often hides in user folders to avoid detection by antivirus software."
+    "Unwanted or malicious software can use user-writable folders, but legitimate software may also run from these locations."
 )
 
 _WHY_THIS_MATTERS_PROC002 = (
-    "Attackers rename malware to look like legitimate system programs to trick users."
+    "Executable names matching system binaries but located outside trusted folders are worth reviewing."
 )
 
 _RECOMMENDED_ACTION_PROC001 = (
-    "Check if this program is legitimate. If not, stop it and remove the executable."
+    "Verify the publisher, install location, and whether this behavior is expected before making changes."
 )
 
 _RECOMMENDED_ACTION_PROC002 = (
-    "Verify the program's location and publisher. Remove if it's not a real system program."
+    "Verify the program's location and publisher. Do not disable, delete, or remove it until confirmed."
 )
 
 _SAFE_TO_IGNORE_WHEN_PROC001 = (
@@ -99,7 +100,11 @@ def _confidence_proc002(exe_path: str) -> Confidence:
     return Confidence.LOW
 
 
-def _build_evidence_proc001(proc: dict[str, Any]) -> list[EvidenceItem]:
+def _normalize_proc_key(name: str, exe_path: str) -> tuple[str, str]:
+    return (name.strip().lower(), os.path.normpath(exe_path).lower() if exe_path else "")
+
+
+def _build_evidence_proc001(proc: dict[str, Any], supporting_count: int = 1) -> list[EvidenceItem]:
     evidence = [
         EvidenceItem(
             type=EvidenceType.METADATA,
@@ -130,6 +135,14 @@ def _build_evidence_proc001(proc: dict[str, Any]) -> list[EvidenceItem]:
                 label="cpu_usage",
             )
         )
+    if supporting_count > 1:
+        evidence.append(
+            EvidenceItem(
+                type=EvidenceType.METADATA,
+                value=str(supporting_count),
+                label="supporting_process_count",
+            )
+        )
     return evidence
 
 
@@ -148,15 +161,30 @@ class SuspiciousProcessesRule(BaseRule):
         findings: list[Finding] = []
         processes = items_by_collector.get("processes", [])
 
+        proc001_groups: dict[tuple[str, str], dict[str, Any]] = {}
+
         for proc in processes:
             exe_path = proc.get("exe_path", "")
             name = proc.get("name", "")
 
             if _is_user_writable_path(exe_path):
-                findings.append(self._make_finding_proc001(proc, scan_id))
+                key = _normalize_proc_key(name, exe_path)
+                if key not in proc001_groups:
+                    proc001_groups[key] = {"proc": proc, "count": 1}
+                else:
+                    proc001_groups[key]["count"] += 1
 
             if _is_system_binary_mimic(name, exe_path):
                 findings.append(self._make_finding_proc002(proc, scan_id))
+
+        for group in proc001_groups.values():
+            findings.append(
+                self._make_finding_proc001(
+                    group["proc"],
+                    scan_id,
+                    supporting_count=group["count"],
+                )
+            )
 
         return findings
 
@@ -164,6 +192,7 @@ class SuspiciousProcessesRule(BaseRule):
         self,
         proc: dict[str, Any],
         scan_id: str,
+        supporting_count: int = 1,
     ) -> Finding:
         return Finding(
             id=RULE_ID_PROC001,
@@ -177,7 +206,7 @@ class SuspiciousProcessesRule(BaseRule):
             official_explanation=_OFFICIAL_EXPLANATION_PROC001,
             in_other_words=_IN_OTHER_WORDS_PROC001,
             why_this_matters=_WHY_THIS_MATTERS_PROC001,
-            evidence=_build_evidence_proc001(proc),
+            evidence=_build_evidence_proc001(proc, supporting_count=supporting_count),
             recommended_action=_RECOMMENDED_ACTION_PROC001,
             safe_to_ignore_when=_SAFE_TO_IGNORE_WHEN_PROC001,
             false_positive_risk=_FALSE_POSITIVE_RISK_PROC001,

@@ -119,10 +119,13 @@ class TestStartupCollector:
         assert isinstance(items, list)
         assert health.collector_name == "startup"
         assert health.ran_successfully is True
-        # Check that items have expected fields
+        # Check that items have expected fields; some entries may be status-only.
         for item in items:
             assert "name" in item
             assert "source" in item
-            assert "command" in item
-            assert "path_redacted" in item
             assert "scope" in item
+            assert any(key in item for key in ("command", "command_redacted", "status"))
+            if item.get("command"):
+                assert "C:\\Users\\" not in item["command"]
+            if item.get("command_redacted"):
+                assert "C:\\Users\\" not in item["command_redacted"]

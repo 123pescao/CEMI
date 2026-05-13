@@ -92,6 +92,30 @@ def test_winpersist_003_upgrades_to_high_for_user_writable_path() -> None:
     assert findings[0].severity.name == "HIGH"
 
 
+def test_winpersist_003_deduplicates_similar_lolbin_entries() -> None:
+    rule = LolbinStartupTaskRule()
+    task_a = {
+        "task_name": "PersistTask",
+        "task_path": "\\Microsoft\\Windows\\TaskScheduler\\PersistTask",
+        "action_command_redacted": "rundll32",
+        "action_arguments_redacted": "C:\\Windows\\System32\\shell32.dll,Entry",
+        "scope": "user",
+    }
+    task_b = {
+        "task_name": "PersistTaskCopy",
+        "task_path": "\\Microsoft\\Windows\\TaskScheduler\\PersistTaskCopy",
+        "action_command_redacted": "rundll32",
+        "action_arguments_redacted": "C:\\Windows\\System32\\shell32.dll,Entry",
+        "scope": "user",
+    }
+    findings = rule.evaluate({"scheduled_tasks": [task_a, task_b]}, "scan-123")
+
+    assert len(findings) == 1
+    assert findings[0].id == "WINPERSIST-003"
+    assert any(ev.label == "supporting_entry_count" for ev in findings[0].evidence)
+    assert any(ev.value == "2" for ev in findings[0].evidence if ev.label == "supporting_entry_count")
+
+
 def test_no_raw_paths_or_secrets_in_evidence() -> None:
     rule = SuspiciousPowerShellStartupRule()
     item = {

@@ -57,7 +57,8 @@ _WHY_THIS_MATTERS_RUNONCE = (
     "and post-install setup routines to execute after reboot."
 )
 _RECOMMENDED_ACTION_RUNONCE = (
-    "Review the RunOnce entry. If it is not part of a trusted installer or upgrade process, disable or remove it."
+    "Review the RunOnce entry and verify whether it belongs to a trusted installer or upgrade process. "
+    "Do not disable, delete, or remove it until confirmed."
 )
 
 _TITLE_POWERSHELL = "Suspicious PowerShell Startup Command"
@@ -83,15 +84,24 @@ _IN_OTHER_WORDS_LOLBIN = (
     "A built-in Windows command or scripting host is being used in startup metadata."
 )
 _WHY_THIS_MATTERS_LOLBIN = (
-    "Attackers frequently use legitimate Windows binaries such as rundll32, regsvr32, and mshta for persistence and execution."
+    "Legitimate Windows binaries are sometimes used for automation. Unexpected startup or task uses are worth reviewing."
 )
 _RECOMMENDED_ACTION_LOLBIN = (
-    "Review the command and determine whether the use of a LOLBin at startup is expected."
+    "Review the command and determine whether the use of a LOLBin at startup is expected. "
+    "Do not disable, delete, or remove items until confirmed."
 )
 
 
 def _normalize_text(value: Any) -> str:
     return str(value or "").strip().lower()
+
+
+def _normalize_group_key(item: dict[str, Any], text: str) -> tuple[str, str, str]:
+    return (
+        text.strip(),
+        _normalize_text(item.get("source")),
+        _normalize_text(item.get("name")),
+    )
 
 
 def _is_user_writable_path(value: str) -> bool:
@@ -101,7 +111,7 @@ def _is_user_writable_path(value: str) -> bool:
     return any(keyword in lower_value for keyword in ["c:\\users\\", "appdata", "temp", "downloads"])
 
 
-def _build_evidence(item: dict[str, Any]) -> list[EvidenceItem]:
+def _build_evidence(item: dict[str, Any], supporting_count: int = 1) -> list[EvidenceItem]:
     evidence: list[EvidenceItem] = [
         EvidenceItem(type=EvidenceType.METADATA, value=item.get("name", "[unknown]"), label="entry_name"),
         EvidenceItem(type=EvidenceType.METADATA, value=item.get("source", "[unknown]"), label="source"),
@@ -132,6 +142,14 @@ def _build_evidence(item: dict[str, Any]) -> list[EvidenceItem]:
                 label="action_arguments_redacted",
             )
         )
+    if supporting_count > 1:
+        evidence.append(
+            EvidenceItem(
+                type=EvidenceType.METADATA,
+                value=str(supporting_count),
+                label="supporting_entry_count",
+            )
+        )
     return evidence
 
 
@@ -160,6 +178,7 @@ def _build_finding(
     scan_id: str,
     severity: Severity,
     contextual_confidence: str,
+    supporting_count: int = 1,
 ) -> Finding:
     return Finding(
         id=id,
@@ -174,7 +193,7 @@ def _build_finding(
         official_explanation=official_explanation,
         in_other_words=in_other_words,
         why_this_matters=why_this_matters,
-        evidence=_build_evidence(item),
+        evidence=_build_evidence(item, supporting_count=supporting_count),
         recommended_action=recommended_action,
         safe_to_ignore_when=(
             "You installed a one-time launcher intentionally."
@@ -252,10 +271,23 @@ class LolbinStartupTaskRule(BaseRule):
         candidates.extend(items_by_collector.get("startup", []))
         candidates.extend(items_by_collector.get("scheduled_tasks", []))
 
+        groups: dict[tuple[str, str, str], dict[str, Any]] = {}
+
         for item in candidates:
             text = _extract_command_text(item)
             if not _contains_lolbin(text):
                 continue
+
+            key = _normalize_group_key(item, text)
+            if key not in groups:
+                groups[key] = {"item": item, "count": 1}
+            else:
+                groups[key]["count"] += 1
+
+        for group in groups.values():
+            item = group["item"]
+            count = group["count"]
+            text = _extract_command_text(item)
 
             severity = Severity.MEDIUM
             if _has_suspicious_powershell_flags(text) or _is_user_writable_path(text):
@@ -273,6 +305,7 @@ class LolbinStartupTaskRule(BaseRule):
                     scan_id,
                     severity,
                     "medium" if severity == Severity.MEDIUM else "high",
+                    supporting_count=count,
                 )
             )
         return findings

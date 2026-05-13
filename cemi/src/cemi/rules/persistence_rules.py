@@ -42,11 +42,12 @@ _PERSIST001_IN_OTHER_WORDS = (
 )
 
 _PERSIST001_WHY_THIS_MATTERS = (
-    "Malware often runs from user folders because those locations are easier to write to than Program Files or Windows system directories."
+    "Unwanted or malicious software can use user-writable folders, but legitimate applications may also run from these locations."
 )
 
 _PERSIST001_RECOMMENDED_ACTION = (
-    "Verify the app publisher, scan the file with trusted security tools, and remove or quarantine only if you understand the impact."
+    "Verify the app publisher, install location, and whether this behavior is expected before making changes. "
+    "Do not remove or quarantine items until you understand the impact."
 )
 
 _USER_WRITABLE_PATH_PATTERNS = [
@@ -139,12 +140,12 @@ _PERSIST002_IN_OTHER_WORDS = (
 )
 
 _PERSIST002_WHY_THIS_MATTERS = (
-    "Legitimate software usually installs to protected system directories. "
-    "User folders are common hiding places for malware."
+    "User-writable folders are less protected than system directories. Startup entries there should be reviewed before making changes."
 )
 
 _PERSIST002_RECOMMENDED_ACTION = (
-    "Verify the startup entry and executable. Remove suspicious entries from startup."
+    "Verify the startup entry, publisher, and install location before making changes. "
+    "Do not disable, delete, or remove items until confirmed."
 )
 
 

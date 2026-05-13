@@ -261,7 +261,7 @@ class CorrelationSignalsRule(BaseRule):
                         seen_keys.add(dedupe_key)
 
                         is_user_writable = _is_user_writable_path(proc_path)
-                        severity = Severity.CRITICAL if is_user_writable else Severity.HIGH
+                        severity = Severity.HIGH if is_user_writable else Severity.MEDIUM
 
                         findings.append(
                             Finding(

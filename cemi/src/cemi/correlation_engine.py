@@ -219,10 +219,11 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
                     "A program that starts automatically is located in a risky user folder and is not known to be trusted."
                 ),
                 why_this_matters=(
-                    "Persistence in user-writable folders is a common malware technique, especially when the software is not clearly trusted."
+                    "Persistence in user-writable folders is often seen in unwanted software, especially when the software is not clearly trusted."
                 ),
                 recommended_action=(
-                    "Inspect the startup entry and executable. Remove the entry if you cannot verify the software's legitimacy."
+                    "Inspect the startup entry and executable, and verify the publisher and install location. "
+                    "Do not disable, delete, or remove the entry until you confirm it is unsafe."
                 ),
                 contributing_findings=startup_strong,
                 scan_id=scan_id,
@@ -246,7 +247,9 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
             corr_confidence = Confidence.HIGH
             corr_status = "Critical Investigation"
             recommended_action = (
-                "Stop the executable and review its origin. Quarantine or remove it if you cannot verify it."
+                "Review the executable and its network behavior carefully. "
+                "Verify publisher, install location, and expected behavior before taking action. "
+                "Use trusted security tools or a qualified helper if you are unsure."
             )
 
         correlated.append(
@@ -280,29 +283,27 @@ def generate_correlated_signals(findings: list[Finding], scan_id: str) -> list[C
             _make_correlated_signal(
                 correlation_id="CORR-104",
                 title="Multiple Suspicious Behaviors Detected",
-                severity=Severity.HIGH,
+                severity=Severity.MEDIUM,
                 confidence=Confidence.MEDIUM,
                 contextual_confidence="medium",
                 status="Needs Review",
                 category="Correlation",
                 official_explanation=(
-                    "Five or more medium-severity signals from diverse categories were detected together, "
-                    "increasing the likelihood of a meaningful threat."
+                    "Five or more medium-severity signals from diverse categories were detected together. "
+                    "This increases the need for review but does not necessarily indicate a confirmed compromise."
                 ),
                 in_other_words=(
-                    "Several suspicious behaviors from different areas were observed at once, which is more "
-                    "concerning than any one alone."
+                    "Several review-worthy behaviors from different areas were observed at once."
                 ),
                 why_this_matters=(
-                    "Multiple weak or medium-level signals from diverse sources often compound into a "
-                    "stronger indicator of compromise."
+                    "Multiple medium-level findings together merit review, but each should be checked before taking action."
                 ),
                 recommended_action=(
-                    "Review the contributing findings together and prioritise the highest-risk items for investigation."
+                    "Review the contributing findings together and prioritise investigation without making destructive changes."
                 ),
                 contributing_findings=medium_signals,
                 scan_id=scan_id,
-                risk_multiplier=1.3,
+                risk_multiplier=1.2,
             )
         )
 

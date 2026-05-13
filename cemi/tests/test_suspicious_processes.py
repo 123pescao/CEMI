@@ -126,6 +126,27 @@ class TestSuspiciousProcessesRule:
                     assert "Alice" not in ev.value
                 assert "Alice" not in ev.value  # Username not in evidence anyway
 
+    def test_proc001_deduplicates_multiple_same_process_instances(self) -> None:
+        proc_a = {
+            "pid": 1111,
+            "name": "Code.exe",
+            "exe_path": r"C:\Users\Alice\AppData\Local\Programs\Microsoft VS Code\Code.exe",
+            "cpu_percent": 1.2,
+        }
+        proc_b = {
+            "pid": 1112,
+            "name": "Code.exe",
+            "exe_path": r"C:\Users\Alice\AppData\Local\Programs\Microsoft VS Code\Code.exe",
+            "cpu_percent": 1.3,
+        }
+        findings = self._rule().evaluate({"processes": [proc_a, proc_b]}, _SCAN_ID)
+
+        assert len(findings) == 1
+        finding = findings[0]
+        assert finding.id == "PROC-001"
+        assert any(ev.label == "supporting_process_count" for ev in finding.evidence)
+        assert any(ev.value == "2" for ev in finding.evidence if ev.label == "supporting_process_count")
+
 
 class TestScanEngineIntegration:
     def test_scan_engine_includes_processes_collector_and_rule(self) -> None:

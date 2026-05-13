@@ -25,8 +25,8 @@ _TITLE = "Auto-Start Entry From User-Writable Location"
 
 _OFFICIAL_EXPLANATION = (
     "An entry in Windows startup configuration points to a location where users "
-    "can write files (AppData, Temp, Downloads, or C:\\Users\\). This is a common "
-    "technique for malware to gain persistence."
+    "can write files (AppData, Temp, Downloads, or C:\\Users\\). This may be used by "
+    "unwanted software or by legitimate installers."
 )
 
 _IN_OTHER_WORDS = (
@@ -34,12 +34,13 @@ _IN_OTHER_WORDS = (
 )
 
 _WHY_THIS_MATTERS = (
-    "Legitimate system programs usually live in Program Files or Windows directories, "
-    "not in user folders. A startup entry pointing to a user folder may indicate unauthorized persistence."
+    "User-writable folders are less protected than system directories. Startup entries there "
+    "should be reviewed before making changes."
 )
 
 _RECOMMENDED_ACTION = (
-    "Check what program this is. If you don't recognize it, remove the startup entry."
+    "Verify the publisher, install location, and whether this behavior is expected before making changes. "
+    "Do not disable, delete, or remove items until confirmed."
 )
 
 _SAFE_TO_IGNORE_WHEN = (

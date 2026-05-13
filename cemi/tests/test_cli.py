@@ -351,10 +351,11 @@ class TestPlatformWarnings:
                         with patch("cemi.main.save_snapshot", return_value=fake_path):
                             result = runner.invoke(app, ["monitor", "--yes", "--iterations", "1"])
         # Monitor output should not contain absolute paths that leak username
-        assert "/home/" not in result.output
-        assert "C:\\Users\\" not in result.output
-        # But should contain relative path
-        assert ".cemi/history/snapshot_" in result.output
+        normalized_output = result.output.replace("\\", "/")
+        assert "/home/" not in normalized_output
+        assert "C:/Users/" not in normalized_output
+        # But should contain relative path with either slash style
+        assert ".cemi/history/snapshot_" in normalized_output
 
 
 # ---------------------------------------------------------------------------
@@ -406,11 +407,21 @@ def _patch_with_finding():
     svcs_health = _make_health(collector_name="services", items_collected=1)
     nmh_health = _make_health(collector_name="native_messaging_hosts")
     bext_health = _make_health(collector_name="browser_extensions")
+    startup_health = _make_health(collector_name="startup")
+    scheduled_health = _make_health(collector_name="scheduled_tasks")
+    processes_health = _make_health(collector_name="processes")
+    network_health = _make_health(collector_name="network_connections")
+    signatures_health = _make_health(collector_name="signatures")
     with (
         patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
         patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health, [_USER_PATH_SVC])),
         patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
         patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health)),
+        patch("cemi.main.StartupCollector", return_value=_mock_run(startup_health)),
+        patch("cemi.main.ScheduledTasksCollector", return_value=_mock_run(scheduled_health)),
+        patch("cemi.main.ProcessesCollector", return_value=_mock_run(processes_health)),
+        patch("cemi.main.NetworkConnectionsCollector", return_value=_mock_run(network_health)),
+        patch("cemi.main.SignaturesCollector", return_value=_mock_run(signatures_health)),
         patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
         patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
     ):
@@ -797,11 +808,21 @@ def _patch_with_high_finding():
     svcs_health = _make_health(collector_name="services")
     nmh_health = _make_health(collector_name="native_messaging_hosts")
     bext_health = _make_health(collector_name="browser_extensions", items_collected=1)
+    startup_health = _make_health(collector_name="startup")
+    scheduled_health = _make_health(collector_name="scheduled_tasks")
+    processes_health = _make_health(collector_name="processes")
+    network_health = _make_health(collector_name="network_connections")
+    signatures_health = _make_health(collector_name="signatures")
     with (
         patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
         patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health)),
         patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
         patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health, [_HIGH_EXT])),
+        patch("cemi.main.StartupCollector", return_value=_mock_run(startup_health)),
+        patch("cemi.main.ScheduledTasksCollector", return_value=_mock_run(scheduled_health)),
+        patch("cemi.main.ProcessesCollector", return_value=_mock_run(processes_health)),
+        patch("cemi.main.NetworkConnectionsCollector", return_value=_mock_run(network_health)),
+        patch("cemi.main.SignaturesCollector", return_value=_mock_run(signatures_health)),
         patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
         patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
     ):
@@ -888,6 +909,11 @@ class TestSummaryCounts:
         svcs_health = _make_health(collector_name="services", items_collected=2)
         nmh_health = _make_health(collector_name="native_messaging_hosts")
         bext_health = _make_health(collector_name="browser_extensions")
+        startup_health = _make_health(collector_name="startup")
+        scheduled_health = _make_health(collector_name="scheduled_tasks")
+        processes_health = _make_health(collector_name="processes")
+        network_health = _make_health(collector_name="network_connections")
+        signatures_health = _make_health(collector_name="signatures")
         svc2 = dict(_USER_PATH_SVC, name="EvilSvc2")
         with (
             patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
@@ -897,6 +923,11 @@ class TestSummaryCounts:
             ),
             patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
             patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health)),
+            patch("cemi.main.StartupCollector", return_value=_mock_run(startup_health)),
+            patch("cemi.main.ScheduledTasksCollector", return_value=_mock_run(scheduled_health)),
+            patch("cemi.main.ProcessesCollector", return_value=_mock_run(processes_health)),
+            patch("cemi.main.NetworkConnectionsCollector", return_value=_mock_run(network_health)),
+            patch("cemi.main.SignaturesCollector", return_value=_mock_run(signatures_health)),
             patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
             patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
         ):
@@ -1158,7 +1189,7 @@ class TestPyprojectConsoleScript:
         from pathlib import Path
 
         pyproject = Path(__file__).parent.parent / "pyproject.toml"
-        data = tomllib.loads(pyproject.read_text())
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         scripts = data.get("project", {}).get("scripts", {})
         assert "cemi" in scripts, "cemi console script not defined in pyproject.toml"
 
@@ -1167,7 +1198,7 @@ class TestPyprojectConsoleScript:
         from pathlib import Path
 
         pyproject = Path(__file__).parent.parent / "pyproject.toml"
-        data = tomllib.loads(pyproject.read_text())
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         scripts = data.get("project", {}).get("scripts", {})
         assert "cemi.main" in scripts.get("cemi", ""), (
             f"cemi script does not reference cemi.main: {scripts.get('cemi')}"
