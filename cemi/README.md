@@ -10,6 +10,8 @@ CEMÍ is a **local-first, privacy-first** desktop security audit tool that inspe
 
 CEMÍ is **read-only, non-destructive, and local-only**. It never accesses personal files, never collects telemetry, never uploads data. All analysis, reports, and logs remain on your device under your control.
 
+See [docs/USER_MANUAL.md](../docs/USER_MANUAL.md) for complete usage instructions, CLI reference, report handling, and privacy guidance.
+
 See [docs/threat_model/README.md](../docs/threat_model/README.md) for detailed threat model and scope.
 
 ## Quick Start
@@ -127,6 +129,7 @@ Reports describe system configuration and should be treated as **sensitive**. Do
 
 ## Documentation
 
+- [docs/USER_MANUAL.md](../docs/USER_MANUAL.md) — Complete user manual with install, CLI reference, report handling, and privacy guidance
 - [docs/threat_model/README.md](../docs/threat_model/README.md) — Threat model, scope, and design philosophy
 - [docs/threat_model/threat_coverage_matrix.md](../docs/threat_model/threat_coverage_matrix.md) — Detailed coverage: what's detected, deferred, and forbidden
 - [docs/architecture.md](../docs/architecture.md) — System design, collector architecture, redaction pipeline
