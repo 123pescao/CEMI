@@ -52,7 +52,7 @@ class TestSuspiciousProcessesRule:
         evidence_labels = {ev.label for ev in f.evidence}
         assert "process_pid" in evidence_labels
         assert "process_name" in evidence_labels
-        assert "exe_path" in evidence_labels
+        assert "exe_path_redacted" in evidence_labels
         assert "cpu_usage" in evidence_labels
 
     def test_proc001_no_fire_for_system_path(self) -> None:

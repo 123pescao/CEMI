@@ -60,6 +60,12 @@ class TestRedactPath:
             == r"c:\users\[REDACTED]\documents"
         )
 
+    def test_linux_home_path_is_redacted(self) -> None:
+        assert (
+            redact_path("/home/batman/.vscode-server/bin/node")
+            == "/home/[REDACTED]/.vscode-server/bin/node"
+        )
+
     def test_path_without_users_segment_unchanged(self) -> None:
         assert redact_path(r"C:\Windows\System32") == r"C:\Windows\System32"
 

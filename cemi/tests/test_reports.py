@@ -1,6 +1,7 @@
 """Tests for cemi.reports.generator."""
 from __future__ import annotations
 
+import json
 import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -700,6 +701,51 @@ class TestSaveJsonReport:
             data = json.loads(path.read_text(encoding="utf-8"))
         assert "findings" in data
         assert data["findings"][0]["title"] == "My Finding"
+
+    def test_json_sanitizes_raw_paths_and_field_labels(self) -> None:
+        finding = Finding(
+            id="TEST-001",
+            instance_id=uuid4(),
+            rule_version="1.0.0",
+            title="Test Finding",
+            severity=Severity.LOW,
+            confidence=Confidence.HIGH,
+            app="test.exe",
+            category="Test",
+            official_explanation="Test",
+            in_other_words="Test",
+            why_this_matters="Test",
+            evidence=[
+                EvidenceItem(
+                    type=EvidenceType.FILE_PATH,
+                    value="/home/batman/.vscode-server/bin/node",
+                    label="exe_path",
+                ),
+                EvidenceItem(
+                    type=EvidenceType.FILE_PATH,
+                    value="powershell.exe -File C:\\Users\\batman\\script.ps1",
+                    label="command",
+                ),
+            ],
+            recommended_action="Review",
+            safe_to_ignore_when=None,
+            false_positive_risk="medium",
+            requires_admin_to_verify=False,
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            scan_id="s1",
+        )
+        result = _make_result(findings=[finding])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = save_json_report(result, Path(tmp))
+            content = path.read_text(encoding="utf-8")
+            data = json.loads(content)
+        assert "/home/batman" not in content
+        assert "C:\\Users\\batman" not in content
+        labels = [ev["label"] for finding in data["findings"] for ev in finding["evidence"]]
+        assert "exe_path" not in labels
+        assert "command" not in labels
+        assert "exe_path_redacted" in labels
+        assert "command_redacted" in labels
 
     def test_json_does_not_include_raw_collector_items(self) -> None:
         # ScanResult structurally cannot hold raw collector items — the model

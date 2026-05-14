@@ -8,6 +8,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from cemi.models import Finding, ScanResult, Severity
+from cemi.utils.redact import redact_path, redact_string
 
 
 def _finding_status(finding: Finding) -> str:
@@ -63,6 +64,36 @@ def save_html_report(html: str, scan_id: str, output_dir: Path) -> Path:
     return path
 
 
+def _sanitize_json_report_value(key: str, value: Any) -> Any:
+    if key == "label" and isinstance(value, str):
+        if value == "exe_path":
+            return "exe_path_redacted"
+        if value == "command":
+            return "command_redacted"
+        if value == "cmdline":
+            return "cmdline_redacted"
+        if value == "command_line":
+            return "command_line_redacted"
+    if key == "value" and isinstance(value, str):
+        return redact_string(redact_path(value))
+    return value
+
+
+def _sanitize_json_report_data(data: Any) -> Any:
+    if isinstance(data, dict):
+        sanitized: dict[str, Any] = {}
+        for key, value in data.items():
+            sanitized_key = "exe_path_redacted" if key == "exe_path" else key
+            sanitized_key = "command_redacted" if sanitized_key == "command" else sanitized_key
+            sanitized_key = "cmdline_redacted" if sanitized_key == "cmdline" else sanitized_key
+            sanitized_key = "command_line_redacted" if sanitized_key == "command_line" else sanitized_key
+            sanitized[sanitized_key] = _sanitize_json_report_data(_sanitize_json_report_value(key, value))
+        return sanitized
+    if isinstance(data, list):
+        return [_sanitize_json_report_data(item) for item in data]
+    return data
+
+
 def save_json_report(result: ScanResult, output_dir: Path) -> Path:
     """Save JSON report to a file in output_dir."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -72,6 +103,6 @@ def save_json_report(result: ScanResult, output_dir: Path) -> Path:
     while path.exists():
         path = output_dir / f"cemi_report_{result.scan_id}_{counter}.json"
         counter += 1
-    data = result.model_dump()
+    data = _sanitize_json_report_data(result.model_dump())
     path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
     return path

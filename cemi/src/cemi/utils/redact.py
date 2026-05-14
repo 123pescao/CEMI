@@ -34,6 +34,12 @@ _USERS_PATH_RE: Final[re.Pattern[str]] = re.compile(
     re.IGNORECASE,
 )
 
+# ``/home/<name>`` on Unix-like systems.
+# Captures:
+#   group(1) = literal "/home"
+#   group(2) = the slash plus username segment
+_HOME_PATH_RE: Final[re.Pattern[str]] = re.compile(r"(/home)(/[^/\\]+)", re.IGNORECASE)
+
 # API-key prefixed secrets. Tail must be at least 8 chars so short false
 # positives like ``sk-1`` don't get redacted.
 _SK_TOKEN_RE: Final[re.Pattern[str]] = re.compile(r"\bsk-[A-Za-z0-9_\-]{8,}")
@@ -77,13 +83,20 @@ def redact_path(path: str) -> str:
     if not path:
         return path
 
-    def _sub(match: re.Match[str]) -> str:
+    def _sub_users(match: re.Match[str]) -> str:
         users, sep, username = match.group(1), match.group(2), match.group(3)
         if username == REDACTED:
             return match.group(0)
         return f"{users}{sep}{REDACTED}"
 
-    return _USERS_PATH_RE.sub(_sub, path)
+    def _sub_home(match: re.Match[str]) -> str:
+        home, username = match.group(1), match.group(2)
+        if username == f"/{REDACTED}":
+            return match.group(0)
+        return f"{home}/{REDACTED}"
+
+    path = _USERS_PATH_RE.sub(_sub_users, path)
+    return _HOME_PATH_RE.sub(_sub_home, path)
 
 
 def redact_string(value: str) -> str:

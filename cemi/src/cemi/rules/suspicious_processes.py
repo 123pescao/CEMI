@@ -123,7 +123,7 @@ def _build_evidence_proc001(proc: dict[str, Any], supporting_count: int = 1) -> 
             EvidenceItem(
                 type=EvidenceType.FILE_PATH,
                 value=redact_path(exe_path),
-                label="exe_path",
+                label="exe_path_redacted",
             )
         )
     cpu = proc.get("cpu_percent")

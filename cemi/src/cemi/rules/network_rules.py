@@ -105,7 +105,7 @@ def _build_evidence_net001(conn: dict[str, Any]) -> list[EvidenceItem]:
             EvidenceItem(
                 type=EvidenceType.FILE_PATH,
                 value=conn["exe_path_redacted"],
-                label="exe_path",
+                label="exe_path_redacted",
             )
         )
     return evidence

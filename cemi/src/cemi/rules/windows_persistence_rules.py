@@ -123,7 +123,7 @@ def _build_evidence(item: dict[str, Any], supporting_count: int = 1) -> list[Evi
             EvidenceItem(
                 type=EvidenceType.FILE_PATH,
                 value=item["command"],
-                label="command",
+                label="command_redacted",
             )
         )
     if "action_command_redacted" in item and item.get("action_command_redacted"):
