@@ -57,16 +57,23 @@ def _category_modifier(category: str, finding: Finding) -> float:
     return _DEFAULT_CATEGORY_MODIFIER
 
 
-def _score_to_level(score: int) -> str:
+def _score_to_level(score: int, has_critical_finding: bool) -> str:
     if score == 0:
         return "none"
     if score <= 20:
         return "low"
     if score <= 50:
-        return "medium"
-    if score <= 80:
+        level = "medium"
+    elif score <= 80:
+        level = "high"
+    else:
+        # score > 80: can be "critical" only if has_critical_finding
+        return "critical" if has_critical_finding else "high"
+    
+    # If there's a CRITICAL finding, ensure level is at least "high"
+    if has_critical_finding and level == "medium":
         return "high"
-    return "critical"
+    return level
 
 
 def calculate_risk_summary(findings: list[Finding], *, legacy: bool = False) -> RiskSummary:
@@ -75,6 +82,8 @@ def calculate_risk_summary(findings: list[Finding], *, legacy: bool = False) -> 
     When ``legacy`` is False, each finding is scored by severity and adjusted by
     a category modifier. When ``legacy`` is True, the original fixed severity
     scores are used instead for backward compatibility.
+    
+    Risk level is capped at "high" unless there is at least one CRITICAL finding.
     """
     if legacy:
         raw_score = sum(_LEGACY_SEVERITY_SCORES.get(finding.severity, 0) for finding in findings)
@@ -88,13 +97,22 @@ def calculate_risk_summary(findings: list[Finding], *, legacy: bool = False) -> 
     score = min(100, int(round(raw_score)))
 
     finding_counts: dict[str, int] = {}
+    has_critical = False
     for finding in findings:
         key = finding.severity.value
         finding_counts[key] = finding_counts.get(key, 0) + 1
+        if finding.severity == Severity.CRITICAL:
+            has_critical = True
+
+    # Final score calibration
+    if has_critical:
+        score = max(81, score)
+    else:
+        score = min(79, score)
 
     return RiskSummary(
         score=score,
-        level=_score_to_level(score),
+        level=_score_to_level(score, has_critical),
         finding_counts=finding_counts,
     )
 

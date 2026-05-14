@@ -16,6 +16,7 @@ from cemi.models import (
     Finding,
     Severity,
 )
+from cemi.trust.software_reputation import assess_software_reputation
 from cemi.rules.engine import BaseRule
 
 RULE_ID_CORR002 = "CORR-002"
@@ -194,7 +195,14 @@ class CorrelationSignalsRule(BaseRule):
                     seen_pairs.add(dedupe_key)
 
                     is_user_writable = _is_user_writable_path(startup.get("path_redacted", ""))
-                    severity = Severity.HIGH if is_user_writable else Severity.MEDIUM
+                    # Check if this is from a known vendor; if so, keep MEDIUM despite user-writable
+                    reputation = assess_software_reputation(
+                        name=conn.get("process_name"),
+                        publisher=None,
+                        path=startup_path,
+                    )
+                    is_known_vendor = reputation.get("known_vendor", False)
+                    severity = Severity.MEDIUM if (is_known_vendor or not is_user_writable) else Severity.HIGH
 
                     findings.append(
                         Finding(
@@ -261,7 +269,14 @@ class CorrelationSignalsRule(BaseRule):
                         seen_keys.add(dedupe_key)
 
                         is_user_writable = _is_user_writable_path(proc_path)
-                        severity = Severity.HIGH if is_user_writable else Severity.MEDIUM
+                        # Check if this is from a known vendor; if so, keep MEDIUM despite unsigned
+                        reputation = assess_software_reputation(
+                            name=proc.get("name"),
+                            publisher=sig.get("publisher"),
+                            path=proc_path,
+                        )
+                        is_known_vendor = reputation.get("known_vendor", False)
+                        severity = Severity.MEDIUM if is_known_vendor else (Severity.HIGH if is_user_writable else Severity.MEDIUM)
 
                         findings.append(
                             Finding(

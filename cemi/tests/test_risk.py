@@ -121,14 +121,14 @@ class TestSingleFindingScores:
         rs = calculate_risk_summary([_finding(Severity.HIGH)])
         assert rs.level == "medium"
 
-    def test_critical_score_is_fifty(self) -> None:
+    def test_critical_score_is_eighty_one(self) -> None:
         rs = calculate_risk_summary([_finding(Severity.CRITICAL)])
-        assert rs.score == 50
+        assert rs.score == 81
 
-    def test_critical_level_is_medium(self) -> None:
-        # 50 falls in the 21-50 bracket → "medium"
+    def test_critical_level_is_high(self) -> None:
+        # Single CRITICAL → score 81 → level "critical"
         rs = calculate_risk_summary([_finding(Severity.CRITICAL)])
-        assert rs.level == "medium"
+        assert rs.level == "critical"
 
 
 # ---------------------------------------------------------------------------
@@ -158,17 +158,17 @@ class TestMultipleFindingSums:
         findings = [_finding(Severity.HIGH), _finding(Severity.HIGH)]
         assert calculate_risk_summary(findings).level == "high"
 
-    def test_three_high_findings_is_ninety(self) -> None:
+    def test_three_high_findings_is_seventy_nine(self) -> None:
         findings = [_finding(Severity.HIGH)] * 3
-        assert calculate_risk_summary(findings).score == 90
+        assert calculate_risk_summary(findings).score == 79
 
-    def test_three_high_level_is_critical(self) -> None:
-        # 90 in 81-100 bracket → "critical"
+    def test_three_high_level_is_high_not_critical(self) -> None:
+        # 90 in 81-100 bracket would be critical, but capped to high since no CRITICAL finding
         findings = [_finding(Severity.HIGH)] * 3
-        assert calculate_risk_summary(findings).level == "critical"
+        assert calculate_risk_summary(findings).level == "high"
 
-    def test_mixed_severities_sum_correctly(self) -> None:
-        # LOW(5) + MEDIUM(15) + HIGH(30) + CRITICAL(50) = 100
+    def test_mixed_with_critical_becomes_critical(self) -> None:
+        # LOW(5) + MEDIUM(15) + HIGH(30) + CRITICAL(50) = 100, has CRITICAL → level is critical
         findings = [
             _finding(Severity.LOW),
             _finding(Severity.MEDIUM),
@@ -176,6 +176,7 @@ class TestMultipleFindingSums:
             _finding(Severity.CRITICAL),
         ]
         assert calculate_risk_summary(findings).score == 100
+        assert calculate_risk_summary(findings).level == "critical"
 
 
 # ---------------------------------------------------------------------------
@@ -188,9 +189,9 @@ class TestScoreCap:
         findings = [_finding(Severity.CRITICAL), _finding(Severity.CRITICAL)]
         assert calculate_risk_summary(findings).score == 100
 
-    def test_many_highs_cap_at_one_hundred(self) -> None:
+    def test_many_highs_cap_at_seventy_nine(self) -> None:
         findings = [_finding(Severity.HIGH)] * 10
-        assert calculate_risk_summary(findings).score == 100
+        assert calculate_risk_summary(findings).score == 79
 
     def test_score_never_exceeds_one_hundred(self) -> None:
         findings = [_finding(Severity.CRITICAL)] * 5
@@ -296,16 +297,22 @@ class TestLevelBoundaries:
         from cemi.risk import _score_to_level  # type: ignore[attr-defined]
         assert _score_to_level(81) == "critical"
 
-    def test_score_one_hundred_is_critical(self) -> None:
-        from cemi.risk import _score_to_level  # type: ignore[attr-defined]
-        assert _score_to_level(100) == "critical"
+    def test_score_seventy_nine_without_critical_finding_is_high(self) -> None:
+        from cemi.scoring import _score_to_level  # type: ignore[attr-defined]
+        # Score 79 without CRITICAL finding → "high" (capped)
+        assert _score_to_level(79, has_critical_finding=False) == "high"
 
-    def test_full_range_via_calculate(self) -> None:
-        # 4×HIGH(30) = 120 → capped to 100 → "critical"
+    def test_score_eighty_one_with_critical_finding_is_critical(self) -> None:
+        from cemi.scoring import _score_to_level  # type: ignore[attr-defined]
+        # Score 81 with CRITICAL finding → "critical"
+        assert _score_to_level(81, has_critical_finding=True) == "critical"
+
+    def test_four_high_findings_without_critical_is_high(self) -> None:
+        # 4×HIGH = 72 → capped to 79, no CRITICAL finding → "high"
         findings = [_finding(Severity.HIGH)] * 4
         rs = calculate_risk_summary(findings)
-        assert rs.score == 100
-        assert rs.level == "critical"
+        assert rs.score == 79
+        assert rs.level == "high"
 
 
 # ---------------------------------------------------------------------------

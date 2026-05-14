@@ -120,12 +120,17 @@ class TestStartupCollector:
         assert health.collector_name == "startup"
         assert health.ran_successfully is True
         # Check that items have expected fields; some entries may be status-only.
+        import getpass
+        import os
+        current_user = getpass.getuser() or os.environ.get("USERNAME", "")
         for item in items:
             assert "name" in item
             assert "source" in item
             assert "scope" in item
             assert any(key in item for key in ("command", "command_redacted", "status"))
+            # Reject raw username, but accept [REDACTED] marker
             if item.get("command"):
-                assert "C:\\Users\\" not in item["command"]
+                assert current_user not in item["command"]
             if item.get("command_redacted"):
-                assert "C:\\Users\\" not in item["command_redacted"]
+                # Allow C:\Users\[REDACTED]\ but reject raw username
+                assert current_user not in item["command_redacted"]

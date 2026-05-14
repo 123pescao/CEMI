@@ -965,8 +965,8 @@ class TestGenerateHtmlReportBanner:
         assert "risk-banner-high" in html
 
     def test_banner_critical_class_for_critical_risk(self) -> None:
-        # 3×HIGH → score 90 → level "critical"
-        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)] * 3)
+        # CRITICAL finding → score 81 → level "critical"
+        result = _make_result(findings=[_make_finding(severity=Severity.CRITICAL)])
         html = generate_html_report(result)
         assert "risk-banner-critical" in html
 
@@ -1014,8 +1014,8 @@ class TestGenerateHtmlReportRiskWhyThisMatters:
         assert "promptly" in html
 
     def test_critical_level_explanation_present(self) -> None:
-        # 3×HIGH → score 90 → level "critical"
-        result = _make_result(findings=[_make_finding(severity=Severity.HIGH)] * 3)
+        # CRITICAL finding → score 81 → level "critical" → "immediate action" text
+        result = _make_result(findings=[_make_finding(severity=Severity.CRITICAL)])
         html = generate_html_report(result)
         assert "immediate action" in html.lower()
 

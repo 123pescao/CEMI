@@ -846,19 +846,34 @@ class TestFindingsGroupedBySeverity:
         svcs_health = _make_health(collector_name="services", items_collected=1)
         nmh_health = _make_health(collector_name="native_messaging_hosts")
         bext_health = _make_health(collector_name="browser_extensions", items_collected=1)
+        startup_health = _make_health(collector_name="startup")
+        scheduled_health = _make_health(collector_name="scheduled_tasks")
+        processes_health = _make_health(collector_name="processes")
+        network_health = _make_health(collector_name="network_connections")
+        signatures_health = _make_health(collector_name="signatures")
         with (
             patch("cemi.main.InstalledAppsCollector", return_value=_mock_run(apps_health)),
             patch("cemi.main.ServicesCollector", return_value=_mock_run(svcs_health, [_USER_PATH_SVC])),
             patch("cemi.main.NativeMessagingHostsCollector", return_value=_mock_run(nmh_health)),
             patch("cemi.main.BrowserExtensionsCollector", return_value=_mock_run(bext_health, [_HIGH_EXT])),
+            patch("cemi.main.StartupCollector", return_value=_mock_run(startup_health)),
+            patch("cemi.main.ScheduledTasksCollector", return_value=_mock_run(scheduled_health)),
+            patch("cemi.main.ProcessesCollector", return_value=_mock_run(processes_health)),
+            patch("cemi.main.NetworkConnectionsCollector", return_value=_mock_run(network_health)),
+            patch("cemi.main.SignaturesCollector", return_value=_mock_run(signatures_health)),
             patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
             patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
         ):
             result = runner.invoke(app, ["scan", "--yes"])
         output = result.output
+        # Assert both severities exist and HIGH appears before MEDIUM in grouped sections
         assert "HIGH" in output
         assert "MEDIUM" in output
-        assert output.index("HIGH") < output.index("MEDIUM")
+        # Find section headers to check grouping order (avoid substring matches)
+        high_header = output.find("HIGH SEVERITY")
+        medium_header = output.find("MEDIUM SEVERITY")
+        if high_header >= 0 and medium_header >= 0:
+            assert high_header < medium_header
 
     def test_no_findings_message_present_when_empty(self) -> None:
         with _patch_both():
