@@ -819,6 +819,54 @@ class TestSaveJsonReport:
             assert p1.name == "cemi_report_scan-a.json"
             assert p2.name == "cemi_report_scan-b.json"
 
+    def test_json_preserves_hostname_redacted(self) -> None:
+        # hostname_redacted is a 64-char hex digest — must NOT be replaced by
+        # [REDACTED_TOKEN] as it is already a non-reversible redacted value.
+        result = _make_result(scan_id="scan-hashtest")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = save_json_report(result, Path(tmp))
+            data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["hostname_redacted"] == "a" * 64
+
+    def test_json_sanitizes_skipped_reason_string(self) -> None:
+        health = CollectorHealth(
+            collector_name="processes",
+            ran_successfully=True,
+            privilege_level="user",
+            items_collected=0,
+            duration_seconds=0.01,
+            skipped_reason=r"Skipped: C:\Users\alice\AppData not accessible",
+        )
+        result = _make_result(collector_health=[health])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = save_json_report(result, Path(tmp))
+            content = path.read_text(encoding="utf-8")
+            data = json.loads(content)
+        assert "alice" not in content
+        skipped = data["collector_health"][0]["skipped_reason"]
+        assert "[REDACTED]" in skipped
+
+    def test_json_sanitizes_health_error_strings(self) -> None:
+        raw_error = r"Error reading C:\Users\alice\AppData\Local\secret.log: permission denied"
+        health = CollectorHealth(
+            collector_name="processes",
+            ran_successfully=True,
+            privilege_level="user",
+            items_collected=0,
+            duration_seconds=0.01,
+            errors=[raw_error],
+        )
+        result = _make_result(collector_health=[health])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = save_json_report(result, Path(tmp))
+            content = path.read_text(encoding="utf-8")
+            data = json.loads(content)
+
+        assert "alice" not in content
+        errors_in_json = data["collector_health"][0]["errors"]
+        assert len(errors_in_json) == 1
+        assert "[REDACTED]" in errors_in_json[0]
+
 
 # ---------------------------------------------------------------------------
 # CLI — --output html and --output json behaviour

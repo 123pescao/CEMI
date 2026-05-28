@@ -13,7 +13,7 @@ from typing import Any, ClassVar, Optional
 
 from cemi.collectors.base import BaseCollector
 from cemi.models import CollectorHealth, PrivilegeLevel
-from cemi.utils.redact import redact_path, REDACTED
+from cemi.utils.redact import redact_path, redact_string, REDACTED
 
 # Platform gate — patchable in tests.
 try:
@@ -23,6 +23,10 @@ except ImportError:
     _PSUTIL_AVAILABLE = False
 
 _IS_WINDOWS = sys.platform == "win32"
+
+
+def _redact_err(msg: str) -> str:
+    return redact_string(redact_path(msg))
 
 
 def _redact_username(username: str) -> str:
@@ -89,10 +93,10 @@ class ProcessesCollector(BaseCollector):
                     had_access_denied = True
                     continue
                 except Exception as exc:
-                    errors.append(f"Error collecting process {proc.pid}: {exc}")
+                    errors.append(_redact_err(f"Error collecting process {proc.pid}: {exc}"))
                     continue
         except Exception as exc:
-            errors.append(f"Error iterating processes: {exc}")
+            errors.append(_redact_err(f"Error iterating processes: {exc}"))
 
         privilege: PrivilegeLevel = "partial" if had_access_denied else "user"
 

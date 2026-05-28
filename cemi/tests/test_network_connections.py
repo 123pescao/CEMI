@@ -40,7 +40,7 @@ class TestNetworkConnectionsCollector:
         assert conn["pid"] == 1234
         assert conn["remote_address"] == "8.8.8.8"
         assert conn["remote_port"] == 443
-        assert conn["local_address"] == "127.0.0.1"
+        assert "local_address" not in conn
         assert conn["local_port"] == 54321
         assert conn["process_name"] == "test.exe"
         assert conn["exe_path_redacted"] is not None
@@ -100,6 +100,86 @@ class TestNetworkConnectionsCollector:
 
         conn = items[0]
         assert "alice" not in conn["exe_path_redacted"]
+        assert "exe_path" not in conn
+
+    @patch("cemi.collectors.network_connections.psutil")
+    def test_exe_path_not_in_connection_dict(self, mock_psutil: MagicMock) -> None:
+        mock_conn = MagicMock()
+        mock_conn.pid = 1234
+        mock_conn.laddr.ip = "127.0.0.1"
+        mock_conn.laddr.port = 54321
+        mock_conn.raddr.ip = "8.8.8.8"
+        mock_conn.raddr.port = 443
+        mock_conn.status = "ESTABLISHED"
+
+        mock_proc = MagicMock()
+        mock_proc.name.return_value = "test.exe"
+        mock_proc.exe.return_value = r"C:\Users\alice\AppData\test.exe"
+
+        mock_psutil.net_connections.return_value = [mock_conn]
+        mock_psutil.Process.return_value = mock_proc
+
+        collector = NetworkConnectionsCollector()
+        items, health = collector.collect()
+
+        conn = items[0]
+        assert "exe_path" not in conn
+        assert "exe_path_redacted" in conn
+        assert conn["exe_path_redacted"] is not None
+
+    @patch("cemi.collectors.network_connections.psutil")
+    def test_local_address_not_in_connection_dict(self, mock_psutil: MagicMock) -> None:
+        mock_conn = MagicMock()
+        mock_conn.pid = None
+        mock_conn.laddr.ip = "192.168.1.50"
+        mock_conn.laddr.port = 54321
+        mock_conn.raddr = None
+        mock_conn.status = "LISTEN"
+
+        mock_psutil.net_connections.return_value = [mock_conn]
+
+        collector = NetworkConnectionsCollector()
+        items, health = collector.collect()
+
+        assert len(items) == 1
+        assert "local_address" not in items[0]
+
+    @patch("cemi.collectors.network_connections.psutil")
+    def test_iteration_error_strings_are_redacted(self, mock_psutil: MagicMock) -> None:
+        mock_psutil.net_connections.side_effect = Exception(
+            r"Cannot enumerate connections: C:\Users\bob\profile locked"
+        )
+
+        collector = NetworkConnectionsCollector()
+        items, health = collector.collect()
+
+        assert len(health.errors) >= 1
+        for err in health.errors:
+            assert "bob" not in err
+            assert r"C:\Users\bob" not in err
+
+    @patch("cemi.collectors.network_connections.psutil")
+    def test_per_connection_error_strings_are_redacted(self, mock_psutil: MagicMock) -> None:
+        class _BrokenConn:
+            pid = 1234
+            raddr = None
+            status = "ESTABLISHED"
+
+            @property
+            def laddr(self):  # noqa: ANN201
+                raise Exception(
+                    r"Failed to read laddr from C:\Users\carol\AppData\sockets: access denied"
+                )
+
+        mock_psutil.net_connections.return_value = [_BrokenConn()]
+
+        collector = NetworkConnectionsCollector()
+        items, health = collector.collect()
+
+        assert len(health.errors) >= 1
+        for err in health.errors:
+            assert "carol" not in err
+            assert r"C:\Users\carol" not in err
 
     @patch("cemi.collectors.network_connections.psutil")
     def test_captures_remote_ip_port(self, mock_psutil: MagicMock) -> None:
@@ -139,4 +219,4 @@ class TestNetworkConnectionsCollector:
         conn = items[0]
         assert conn["pid"] is None
         assert conn["process_name"] is None
-        assert conn["exe_path"] is None
+        assert "exe_path" not in conn

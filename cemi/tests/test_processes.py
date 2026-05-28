@@ -107,3 +107,41 @@ class TestProcessesCollector:
         proc = items[0]
         assert "Alice" not in proc["exe_path"]
         assert "Alice" not in proc["username"]
+
+    @patch("cemi.collectors.processes.psutil")
+    @patch("cemi.collectors.processes._IS_WINDOWS", True)
+    def test_iteration_error_strings_are_redacted(self, mock_psutil: MagicMock) -> None:
+        mock_psutil.process_iter.side_effect = Exception(
+            r"Error scanning C:\Users\alice\AppData\Roaming: access denied"
+        )
+
+        collector = ProcessesCollector()
+        items, health = collector.collect()
+
+        assert len(health.errors) >= 1
+        for err in health.errors:
+            assert "alice" not in err
+            assert r"C:\Users\alice\AppData\Roaming" not in err
+
+    @patch("cemi.collectors.processes.psutil")
+    @patch("cemi.collectors.processes._IS_WINDOWS", True)
+    def test_per_process_error_strings_are_redacted(self, mock_psutil: MagicMock) -> None:
+        import psutil as real_psutil
+
+        mock_proc = MagicMock()
+        mock_proc.pid = 9999
+        mock_proc.info = MagicMock(
+            side_effect=Exception(
+                r"Cannot read C:\Users\bob\AppData\Local\Temp\debug.log: permission denied"
+            )
+        )
+        mock_psutil.process_iter.return_value = [mock_proc]
+        mock_psutil.AccessDenied = real_psutil.AccessDenied
+        mock_psutil.NoSuchProcess = real_psutil.NoSuchProcess
+
+        collector = ProcessesCollector()
+        items, health = collector.collect()
+
+        assert len(health.errors) >= 1
+        for err in health.errors:
+            assert "bob" not in err

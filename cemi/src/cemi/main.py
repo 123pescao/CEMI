@@ -120,17 +120,17 @@ def _print_correlated_signals(signals: list[CorrelatedSignal]) -> None:
 
     _console.print("\n[bold]Correlated Threat Signals[/bold]")
     for signal in signals:
-        _console.print(f"\n  [bold]{signal.title}[/bold]")
-        _console.print(f"    Status: {signal.status}")
-        _console.print(f"    Confidence: {signal.contextual_confidence}")
-        _console.print(f"    Severity: {signal.severity.value}")
+        _console.print(f"\n  [bold]{escape(signal.title)}[/bold]")
+        _console.print(f"    Status: {escape(signal.status)}")
+        _console.print(f"    Confidence: {escape(signal.contextual_confidence)}")
+        _console.print(f"    Severity: {escape(signal.severity.value)}")
         _console.print(f"    Risk multiplier: {signal.risk_multiplier}")
         if signal.contributing_findings:
             _console.print("    Why CEMÍ correlated this:")
             for item in signal.contributing_findings:
-                _console.print(f"      - {item}")
+                _console.print(f"      - {escape(item)}")
         if signal.reasoning_notes:
-            _console.print(f"    Notes: {' '.join(signal.reasoning_notes)}")
+            _console.print(f"    Notes: {escape(' '.join(signal.reasoning_notes))}")
 
 
 def _print_findings(findings: list[Finding]) -> None:
@@ -175,22 +175,23 @@ def _print_findings(findings: list[Finding]) -> None:
 
 def _print_collector_summary(health: CollectorHealth) -> None:
     """Print a one-line status for a collector, followed by any errors."""
+    name = escape(health.collector_name)
     if health.skipped_reason:
         _console.print(
-            f"  {health.collector_name}: SKIPPED — {health.skipped_reason}"
+            f"  {name}: SKIPPED — {escape(health.skipped_reason)}"
         )
     elif health.ran_successfully:
         _console.print(
-            f"  {health.collector_name}: OK ({health.duration_seconds:.2f}s)"
+            f"  {name}: OK ({health.duration_seconds:.2f}s)"
         )
     else:
         _console.print(
-            f"  {health.collector_name}: FAILED ({health.duration_seconds:.2f}s)"
+            f"  {name}: FAILED ({health.duration_seconds:.2f}s)"
         )
     if health.errors:
         _console.print("  Errors:")
         for err in health.errors:
-            _console.print(f"    {err}")
+            _console.print(f"    {escape(err)}")
 
 
 _PRIVACY_GUARANTEES: list[str] = [

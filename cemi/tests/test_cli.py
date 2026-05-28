@@ -1082,6 +1082,114 @@ class TestScanSubcommand:
         assert "Why CEMÍ correlated this" in result.output
 
 
+class TestRichMarkupEscape:
+    """Verify that attacker-controlled strings cannot inject Rich markup into CLI output."""
+
+    def _make_correlated_signal(
+        self,
+        title: str = "Test Signal",
+        contributing_findings: list[str] | None = None,
+        reasoning_notes: list[str] | None = None,
+    ) -> CorrelatedSignal:
+        return CorrelatedSignal(
+            id="CORR-101",
+            instance_id=uuid4(),
+            rule_version="1.0.0",
+            correlation_id="CORR-101",
+            title=title,
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            contextual_confidence="high",
+            status="High Priority",
+            contributing_findings=contributing_findings or [],
+            evidence_count=1,
+            risk_multiplier=1.4,
+            reasoning_notes=reasoning_notes or [],
+            app=None,
+            category="Correlation",
+            official_explanation="Official.",
+            in_other_words="In other words.",
+            why_this_matters="Why.",
+            evidence=[EvidenceItem(type=EvidenceType.METADATA, value="1", label="count")],
+            recommended_action="Review.",
+            safe_to_ignore_when="Safe.",
+            false_positive_risk="low",
+            requires_admin_to_verify=False,
+            created_at=datetime.now(timezone.utc),
+            scan_id="scan-escape-test",
+        )
+
+    def _run_with_signal(self, signal: CorrelatedSignal) -> str:
+        scan_result = ScanResult(
+            scan_id="scan-escape-test",
+            scan_version="0.1.0",
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+            hostname_redacted="x" * 64,
+            privilege_level="user",
+            collector_health=[_make_health()],
+            findings=[],
+            correlated_signals=[signal],
+            total_apps_scanned=0,
+            risk_summary=calculate_risk_summary([signal]),
+        )
+        mock_engine = MagicMock()
+        mock_engine.run_scan.return_value = scan_result
+        with (
+            patch("cemi.main.ScanEngine", return_value=mock_engine),
+            patch("cemi.main.save_html_report", return_value=_FAKE_REPORT_PATH),
+            patch("cemi.main.save_json_report", return_value=_FAKE_JSON_PATH),
+        ):
+            result = runner.invoke(app, ["scan", "--yes"])
+        return result.output
+
+    def test_rich_markup_in_signal_title_is_escaped(self) -> None:
+        signal = self._make_correlated_signal(title="[bold red]injected[/bold red]")
+        output = self._run_with_signal(signal)
+        assert "[bold red]injected[/bold red]" in output
+
+    def test_rich_markup_in_contributing_findings_is_escaped(self) -> None:
+        signal = self._make_correlated_signal(
+            contributing_findings=["EXT-003: [bold red]evil extension[/bold red]"]
+        )
+        output = self._run_with_signal(signal)
+        assert "[bold red]evil extension[/bold red]" in output
+
+    def test_rich_markup_in_reasoning_notes_is_escaped(self) -> None:
+        signal = self._make_correlated_signal(
+            reasoning_notes=["Check [bold]this[/bold] finding carefully"]
+        )
+        output = self._run_with_signal(signal)
+        assert "[bold]this[/bold]" in output
+
+    def test_rich_markup_in_collector_health_errors_is_escaped(self) -> None:
+        health_with_markup = _make_health(
+            collector_name="processes",
+            errors=["[bold red]injected[/bold red]: something failed"],
+        )
+        with _patch_both(processes_health=health_with_markup):
+            result = runner.invoke(app, ["scan", "--yes"])
+        assert "[bold red]injected[/bold red]: something failed" in result.output
+
+    def test_rich_markup_in_collector_name_is_escaped(self) -> None:
+        health_with_markup = _make_health(
+            collector_name="[bold red]evil[/bold red]",
+            ran_successfully=True,
+        )
+        with _patch_both(processes_health=health_with_markup):
+            result = runner.invoke(app, ["scan", "--yes"])
+        assert "[bold red]evil[/bold red]: OK" in result.output
+
+    def test_rich_markup_in_skipped_reason_is_escaped(self) -> None:
+        health_with_markup = _make_health(
+            collector_name="processes",
+            skipped_reason="[bold red]skip[/bold red]: platform not supported",
+        )
+        with _patch_both(processes_health=health_with_markup):
+            result = runner.invoke(app, ["scan", "--yes"])
+        assert "[bold red]skip[/bold red]: platform not supported" in result.output
+
+
 class TestHistoryCommand:
     def test_history_shows_no_history_message(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

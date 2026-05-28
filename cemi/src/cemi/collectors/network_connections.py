@@ -11,7 +11,7 @@ from typing import Any, ClassVar, Optional
 
 from cemi.collectors.base import BaseCollector
 from cemi.models import CollectorHealth, PrivilegeLevel
-from cemi.utils.redact import redact_path
+from cemi.utils.redact import redact_path, redact_string
 
 _IS_WINDOWS = sys.platform == "win32"
 
@@ -20,6 +20,10 @@ try:
     _PSUTIL_AVAILABLE = True
 except ImportError:
     _PSUTIL_AVAILABLE = False
+
+
+def _redact_err(msg: str) -> str:
+    return redact_string(redact_path(msg))
 
 
 class NetworkConnectionsCollector(BaseCollector):
@@ -53,12 +57,10 @@ class NetworkConnectionsCollector(BaseCollector):
                     conn_data = {
                         "pid": conn.pid,
                         "process_name": None,
-                        "local_address": conn.laddr.ip if conn.laddr else None,
                         "local_port": conn.laddr.port if conn.laddr else None,
                         "remote_address": conn.raddr.ip if conn.raddr else None,
                         "remote_port": conn.raddr.port if conn.raddr else None,
                         "status": conn.status,
-                        "exe_path": None,
                         "exe_path_redacted": None,
                     }
 
@@ -68,7 +70,6 @@ class NetworkConnectionsCollector(BaseCollector):
                             conn_data["process_name"] = proc.name()
                             exe = proc.exe()
                             if exe:
-                                conn_data["exe_path"] = exe
                                 conn_data["exe_path_redacted"] = redact_path(exe)
                         except Exception as exc:
                             error_text = str(exc).lower()
@@ -78,10 +79,10 @@ class NetworkConnectionsCollector(BaseCollector):
 
                     connections.append(conn_data)
                 except Exception as exc:
-                    errors.append(f"Error collecting connection: {exc}")
+                    errors.append(_redact_err(f"Error collecting connection: {exc}"))
                     continue
         except Exception as exc:
-            errors.append(f"Error iterating connections: {exc}")
+            errors.append(_redact_err(f"Error iterating connections: {exc}"))
 
         privilege: PrivilegeLevel = "partial" if had_access_denied else "user"
 

@@ -79,7 +79,11 @@ def _sanitize_json_report_value(key: str, value: Any) -> Any:
     return value
 
 
-def _sanitize_json_report_data(data: Any) -> Any:
+# Keys whose string values (including list-of-string elements) must be sanitized.
+_SANITIZE_STRING_KEYS: frozenset[str] = frozenset({"errors", "skipped_reason"})
+
+
+def _sanitize_json_report_data(data: Any, _parent_key: str = "") -> Any:
     if isinstance(data, dict):
         sanitized: dict[str, Any] = {}
         for key, value in data.items():
@@ -87,10 +91,14 @@ def _sanitize_json_report_data(data: Any) -> Any:
             sanitized_key = "command_redacted" if sanitized_key == "command" else sanitized_key
             sanitized_key = "cmdline_redacted" if sanitized_key == "cmdline" else sanitized_key
             sanitized_key = "command_line_redacted" if sanitized_key == "command_line" else sanitized_key
-            sanitized[sanitized_key] = _sanitize_json_report_data(_sanitize_json_report_value(key, value))
+            sanitized[sanitized_key] = _sanitize_json_report_data(
+                _sanitize_json_report_value(key, value), _parent_key=key
+            )
         return sanitized
     if isinstance(data, list):
-        return [_sanitize_json_report_data(item) for item in data]
+        return [_sanitize_json_report_data(item, _parent_key=_parent_key) for item in data]
+    if isinstance(data, str) and _parent_key in _SANITIZE_STRING_KEYS:
+        return redact_string(redact_path(data))
     return data
 
 

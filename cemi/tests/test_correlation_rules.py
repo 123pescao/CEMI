@@ -33,7 +33,6 @@ class TestCorrelationSignalsRule:
         conn = {
             "pid": 1234,
             "process_name": "malware.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "192.0.2.1",
             "remote_port": 80,
@@ -73,7 +72,6 @@ class TestCorrelationSignalsRule:
         conn = {
             "pid": 5678,
             "process_name": "suspicious.exe",
-            "local_address": "192.168.1.1",
             "local_port": 49152,
             "remote_address": "10.0.0.1",
             "remote_port": 443,
@@ -105,7 +103,6 @@ class TestCorrelationSignalsRule:
         conn = {
             "pid": 1234,
             "process_name": "app2.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "192.0.2.1",
             "remote_port": 80,
@@ -136,7 +133,6 @@ class TestCorrelationSignalsRule:
         conn_a = {
             "pid": 1111,
             "process_name": "chrome.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "198.51.100.1",
             "remote_port": 443,
@@ -146,7 +142,6 @@ class TestCorrelationSignalsRule:
         conn_b = {
             "pid": 1112,
             "process_name": "chrome.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54322,
             "remote_address": "203.0.113.2",
             "remote_port": 80,
@@ -178,7 +173,6 @@ class TestCorrelationSignalsRule:
         conn = {
             "pid": 9999,
             "process_name": "persist.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "1.2.3.4",
             "remote_port": 8080,

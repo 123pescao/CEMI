@@ -18,7 +18,6 @@ class TestNetworkConnectionsRule:
         conn = {
             "pid": 1234,
             "process_name": "chrome.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "8.8.8.8",
             "remote_port": 443,
@@ -36,7 +35,6 @@ class TestNetworkConnectionsRule:
         conn = {
             "pid": 5678,
             "process_name": "malware.exe",
-            "local_address": "192.168.1.1",
             "local_port": 49152,
             "remote_address": "10.0.0.1",
             "remote_port": 80,
@@ -57,7 +55,6 @@ class TestNetworkConnectionsRule:
         conn = {
             "pid": 1234,
             "process_name": "explorer.exe",
-            "local_address": "0.0.0.0",
             "local_port": 49152,
             "remote_address": None,
             "remote_port": None,
@@ -71,7 +68,6 @@ class TestNetworkConnectionsRule:
         conn = {
             "pid": 1234,
             "process_name": "test.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "93.184.216.34",
             "remote_port": 443,
@@ -89,7 +85,6 @@ class TestNetworkConnectionsRule:
         conn_a = {
             "pid": 1234,
             "process_name": "chrome.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "8.8.8.8",
             "remote_port": 443,
@@ -99,7 +94,6 @@ class TestNetworkConnectionsRule:
         conn_b = {
             "pid": 1235,
             "process_name": "chrome.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54322,
             "remote_address": "1.1.1.1",
             "remote_port": 80,
@@ -115,7 +109,6 @@ class TestNetworkConnectionsRule:
         conn = {
             "pid": 2222,
             "process_name": "chrome.exe",
-            "local_address": "127.0.0.1",
             "local_port": 54321,
             "remote_address": "203.0.113.10",
             "remote_port": 443,
