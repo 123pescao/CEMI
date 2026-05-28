@@ -1,3 +1,6 @@
 /.cemi/
 /.venv/
 /reports/
+
+# Local Claude project rules
+CLAUDE.md
